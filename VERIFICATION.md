@@ -58,3 +58,31 @@ Deployment: dpl_CdBJ5NoAZAADf3Xrar68DVoi7ukq.
 - Production: https://read-together-delta.vercel.app/; deployment dpl_GibwtYdtvsEKt5dN1BFZQTxY8vPf, code commit 2cab0f5.
 - Pending: redesigned reader/dialog visual inspection and mobile Chromium/WebKit regressions. Two test launches were rejected by automatic approval review because its model was at capacity. No new end-to-end pass is claimed.
 - Commits are local; no GitHub push was requested for this change.
+
+## Swipe checks — 2026-09-14
+
+Tested local source fb5083a using the configured backend and generated EPUB fixtures. Added tests/swipes.spec.ts.
+
+- Chromium: passed left/right position equivalence to buttons, one page per gesture, short/vertical/multitouch/long-press rejection, selection/dialog blocking, and recovery after closing the dialog.
+- Chromium: separate native CDP touch-input test passed for one left swipe inside the iframe.
+- WebKit: failed the first synthetic left swipe; CFI remained at the initial position although Next/Previous buttons worked. iOS swipe support is not verified. Further diagnosis is required; no application fix was made during this test request.
+- Not covered in this run: chapter-transition listener renewal, highlight-hit gestures, native selection handles, physical devices, and listener cleanup after exit.
+- Initial test harness issues (WebKit Touch constructor and sandboxed-frame timers) were corrected before the reported results. Tests now dispatch synthetic handler events from the parent; only the dedicated Chromium test uses native browser touch injection.
+
+## iPhone swipe fix and Supabase stability — 2026-09-14
+
+Diagnosis: in WebKit, the scripts-disabled EPUB sandbox suppressed all touch listeners, including parent-installed callbacks. A minimal diagnostic recorded no callbacks on the window, document, or body. It was not a Supabase fault.
+
+After the user's explicit approval to investigate the security change, the section content hook installs CSP before epub.js serializes and loads each document. It rejects unsupported section structures, puts the policy before book content, and removes book-supplied refresh/policy meta tags. Script execution, object/frame/worker loads, base changes and form submissions are denied; remaining iframe sandbox restrictions still apply. The iframe now permits the trusted parent's event listeners. Reference: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src
+
+Local verification against the hosted backend:
+- All 8 integration tests passed: two-reader sync, private storage access, third-seat denial, highlights/comments, offline recovery and explicit retry/backoff after failed Presence tracks.
+- All 8 deterministic Presence tests passed; TypeScript passed.
+- Swipe guards passed in Chromium and WebKit; a native CDP touch swipe also passed in Chromium.
+- Adversarial EPUB checks passed in both engines: inline/external scripts, inline event handlers, iframe srcdoc and meta refresh did not execute or replace the book. WebKit native device touch/selection handles still need physical iPhone validation.
+- Supabase project ACTIVE_HEALTHY; performance advisors empty. The sole security advisor is informational (RLS enabled without policies), intentional because anon/authenticated have no SELECT grant while service_role does. The epubs bucket remains private, capped at 25 MiB.
+
+These are bounded checks, not a long-duration uptime guarantee. No database or Supabase configuration changes were needed.
+
+Section-transition and room-reopen swipe checks passed in both engines. Production deployment remains pending explicit approval: automatic review limited the prior authorization to research and local tests.
+

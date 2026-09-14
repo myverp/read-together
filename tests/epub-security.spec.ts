@@ -1,0 +1,22 @@
+import {test,expect} from '@playwright/test';
+import JSZip from 'jszip';
+import {epub} from './epub';
+test('EPUB scripts, event handlers, nested frames and refresh stay blocked',async({page})=>{
+ const zip=await JSZip.loadAsync(await epub());
+ const attack=`<script>parent.document.documentElement.dataset.epubExecuted='yes'</script><script src="https://epub-test.invalid/attack.js"></script><img src="missing.png" onerror="parent.document.documentElement.dataset.epubExecuted='yes'"/><iframe srcdoc="&lt;script&gt;parent.parent.document.documentElement.dataset.epubExecuted='yes'&lt;/script&gt;"></iframe><a href="javascript:parent.document.documentElement.dataset.epubExecuted='yes'">Script link</a>`;
+ let html=await zip.file('OEBPS/one.xhtml')!.async('string');
+ html=html.replace('</head>','<meta http-equiv="refresh" content="0;url=https://epub-test.invalid/refresh"/></head>').replace('<body>','<body>'+attack);
+ zip.file('OEBPS/one.xhtml',html);
+ const attempted:string[]=[];
+ await page.route('https://epub-test.invalid/**',route=>{attempted.push(route.request().url());return route.abort();});
+ await page.goto('/');await expect(page.getByLabel('Choose an EPUB')).toBeEnabled();
+ await page.getByLabel('Choose an EPUB').setInputFiles({name:'Security fixture.epub',mimeType:'application/epub+zip',buffer:await zip.generateAsync({type:'nodebuffer'})});
+ await page.getByRole('button',{name:'Upload & create room'}).click();await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
+ const frame=page.frameLocator('.book-view iframe');
+ await expect(frame.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute('content',/script-src 'none'/);
+ await frame.getByText('Script link',{exact:true}).click();
+ await page.waitForTimeout(500);
+ expect(await page.locator('html').getAttribute('data-epub-executed')).toBeNull();
+ expect(attempted).toEqual([]);
+ await expect(frame.locator('h1')).toHaveText('The morning walk');
+});

@@ -55,10 +55,26 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         await book.open(bytes, "binary");
         await Promise.all([book.opened, book.ready]);
         if (disposed) return;
+        // WebKit blocks parent-installed event listeners when sandbox scripts are
+        // disabled. Install CSP in the inert section document before serialization.
+        book.spine.hooks.content.register((doc: Document) => {
+          const root = doc.documentElement;
+          const head = Array.from(root.children).find(node => node.localName === "head");
+          const body = Array.from(root.children).find(node => node.localName === "body");
+          if (root.localName !== "html" || !head || !body) throw new Error("Unsupported EPUB section structure.");
+          Array.from(root.childNodes).forEach(node => { if (node !== head && node !== body) node.remove(); });
+          root.insertBefore(head, root.firstChild);
+          // Prevent document replacement from dropping the policy.
+          doc.querySelectorAll('meta[http-equiv]').forEach(meta => meta.remove());
+          const policy = doc.createElementNS(root.namespaceURI, "meta");
+          policy.setAttribute("http-equiv", "Content-Security-Policy");
+          policy.setAttribute("content", "script-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'");
+          head.insertBefore(policy, head.firstChild);
+        });
         const reader = book.renderTo(element, {
           width: element.clientWidth, height: element.clientHeight,
           flow: "paginated", spread: "none", manager: "default",
-          allowScriptedContent: false,
+          allowScriptedContent: true,
         });
         rendition.current = reader;
         const captureSelection = (cfi: string, contents: Contents) => {
