@@ -1,3 +1,15 @@
+# Page narration verification — 14 September 2026
+
+- TypeScript: passed.
+- ElevenLabs adapter: 5 deterministic tests passed (request contract, limits, sanitized errors, voices, cancellation); no real key or credits used.
+- Audio UI/API: 4 tests passed on mobile Chromium/WebKit against local Next.js and hosted room authorization. Speech/voices responses were fixtures. Covered page boundaries, voice memory, forgetting the key, quota errors, cancellation, and unauthorized access. Native playback/pause passed on Chromium.
+- Windows WebKit limitation: an independent blank-page PCM probe also failed with media error 4. Its audio integration test therefore checks the UI/data flow but excludes native decoding assertions. Physical iPhone playback and real ElevenLabs generation remain unverified.
+- Existing reader regression: 11 passed, 1 expected WebKit skip (Chromium-only CDP touch). Covers two-reader Presence, private book access, third-reader rejection, highlights/comments, resume, and swipes across chapters.
+- Presence lifecycle: 8 deterministic tests passed.
+- No database migration or new deployment secret required. API key and selected voice live only in React memory until reader exit/reload; no key enters browser storage or the room data.
+
+The audio window reads a snapshot of the visible page. Closing it aborts pending work and releases playback. Generation sends text to ElevenLabs; provider retention/billing still applies. The application makes no automatic retries of billable speech calls.
+
 # Production verification — 8 September 2026
 
 The app was tested at https://read-together-delta.vercel.app against hosted Supabase project `vttukyiegxkrfyneeblz`, not mocks or the local database. Vercel deployment: `dpl_9RgVPkgfHXc3LJUuMaRDYZSbwkt5` (Production, READY).
