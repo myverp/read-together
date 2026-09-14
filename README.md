@@ -11,6 +11,7 @@ A small web app for two people reading the same EPUB. Read at your own pace, see
 - Mark your current position as **Done here**.
 - Highlight text with an optional comment. Each reader has a consistent, distinct color.
 - Collapse the top panel for more reading space and resume from the same browser later.
+- Listen to the current page using your own ElevenLabs key, with voice selection and native audio controls.
 
 Designed for mobile screens, including Android and iOS. No library, chat, PDF support, or profiles.
 
@@ -68,11 +69,24 @@ For Docker-based Supabase setup and detailed behavior, see [the setup guide](doc
 
 Import this repository into Vercel as a Next.js project. Add all three environment variables **before building**, then deploy. Public variables are embedded in the browser bundle during the build. Use HTTPS when sharing with phones.
 
+## Listen to a page
+
+1. Open a book and tap the headphones button.
+2. Enter an [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys) with **Text to Speech** and **Voices read** permissions. Set a spending limit in ElevenLabs.
+3. Load voices, choose one, and select **Generate page audio**. Then press Play; the native player supports pause and seeking on mobile.
+
+The key and selected voice stay in memory until you exit or reload the reader. **Forget key** clears them immediately. No new environment variable, account system, or database migration is needed.
+
+Only text between the visible page's start and end CFI is sent through a room-authorized server route to ElevenLabs. Generation uses [Multilingual v2](https://elevenlabs.io/docs/overview/models), returns MP3, and consumes your ElevenLabs credits. The provider's own data-retention terms apply. The app does not store the key, text, or audio in its database or logs. Responses are not cached; replay within the open audio window does not generate again.
+
+Closing the audio window stops playback and cancels pending requests; cancellation cannot guarantee a refund for generation already started by ElevenLabs. The page snapshot stays fixed while settings are open so the phone keyboard does not change the text being read. Close the window before turning pages. Text-free pages and pages above 10,000 characters show an error rather than silently skipping or truncating text. No automatic page turning or background audio guarantee.
+
 ## Checks
 
 ```sh
 npm run typecheck
 npm run test:presence
+node --test checks/elevenlabs.test.mjs
 npm run build
 npx playwright install chromium webkit
 npm test
@@ -81,6 +95,8 @@ npm test
 Browser tests need a configured Supabase backend and create rooms/uploads, so use a development project. They cover two-reader sync, private book access, highlights, reconnects, and third-reader rejection. Test EPUBs are generated from original fixture text.
 
 Tests have passed with mobile Chromium and WebKit emulation. Physical Android and iOS devices have not been verified.
+
+Audio browser tests use a playable fixture response; provider tests check request forwarding, error sanitization, limits, and cancellation with mocked fetch. They do not validate ElevenLabs voice quality or consume real credits.
 
 ## Current limits
 

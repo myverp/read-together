@@ -7,6 +7,8 @@ import type { Room } from "@/lib/types";
 import { useHighlights } from "@/lib/use-highlights";
 import { HIGHLIGHT_COLORS } from "@/lib/highlights";
 import HighlightDialog, { type Selection, type HighlightDialogState } from "./HighlightDialog";
+import PageAudio, { type AudioVoice } from "./PageAudio";
+import { visiblePageText } from "@/lib/page-text";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: () => void }) {
   const { highlights, error: highlightError, refresh, save, remove } = useHighlights(room.code);
@@ -22,6 +24,10 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(true);
+  const [audioPage, setAudioPage] = useState<{ text: string; id: string } | null>(null);
+  const [audioKey, setAudioKey] = useState("");
+  const [audioVoice, setAudioVoice] = useState<AudioVoice | null>(null);
+  const audioOpen = useRef(false);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [highlightDialog, setHighlightDialog] = useState<HighlightDialogState | null>(null);
   const shownDialog = useRef(highlightDialog);
@@ -78,7 +84,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         });
         rendition.current = reader;
         const captureSelection = (cfi: string, contents: Contents) => {
-          if (disposed || shownDialog.current) return;
+          if (disposed || shownDialog.current || audioOpen.current) return;
           const quote = contents.window.getSelection()?.toString().trim();
           if (!quote) return;
           if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); setSelection(null); return; }
@@ -107,13 +113,13 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         if (disposed) return;
         // Explicit dimensions prevent the iframe from expanding the mobile viewport.
         resize = new ResizeObserver(() => {
-          if (!disposed && element.clientWidth && element.clientHeight) reader.resize(element.clientWidth, element.clientHeight);
+          if (!disposed && !audioOpen.current && element.clientWidth && element.clientHeight) reader.resize(element.clientWidth, element.clientHeight);
         });
         resize.observe(element);
         // WebKit can omit selectionchange callbacks inside sandboxed EPUB frames.
         // Read from the trusted parent instead; never enable scripts in the book.
         selectionTimer = setInterval(() => {
-          if (disposed || shownDialog.current || document.visibilityState !== "visible") return;
+          if (disposed || shownDialog.current || audioOpen.current || document.visibilityState !== "visible") return;
           const contents = reader.getContents() as unknown as Contents[];
           for (const content of contents) {
             const selected = content.window.getSelection();
@@ -186,7 +192,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         const blocked = () => {
           const state = swipeState.current;
           const selected = content.window.getSelection();
-          return state.loading || navigationBusy.current || !!state.selection || !!state.highlightDialog ||
+          return state.loading || audioOpen.current || navigationBusy.current || !!state.selection || !!state.highlightDialog ||
             !!(selected && !selected.isCollapsed);
         };
         // Annotations are SVG overlays in the parent, not children of the iframe.
@@ -277,6 +283,21 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     finally { navigationBusy.current = false; setTurning(false); }
   }
 
+  function openAudio() {
+    if (!rendition.current || navigationBusy.current) return;
+    try {
+      const page = visiblePageText(rendition.current);
+      clearSelection(); setError(""); audioOpen.current = true; setAudioPage(page);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not read this page’s text."); }
+  }
+
+  function closeAudio() {
+    audioOpen.current = false; setAudioPage(null);
+    // Restore layout after the settings keyboard or a device rotation.
+    const element = viewer.current;
+    if (element) rendition.current?.resize(element.clientWidth, element.clientHeight);
+  }
+
   return <main className="reader">
     <div id="reader-details" hidden={!detailsExpanded}>
     <section className="reader-status" aria-label="Reader positions">
@@ -291,6 +312,9 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     </div>
     <div className="reader-toolbar">
       <button className="secondary" disabled={!partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)}>Jump to partner</button>
+      <button className="secondary details-toggle" disabled={loading || turning || !!highlightDialog} onClick={openAudio} aria-label="Listen to page" title="Listen to page">
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/></svg>
+      </button>
       <button className="secondary details-toggle" aria-expanded={detailsExpanded} aria-controls="reader-details" aria-label={detailsExpanded ? "Collapse room details" : "Expand room details"} onClick={() => setDetailsExpanded(expanded => !expanded)}>
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={detailsExpanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} /></svg>
       </button>
@@ -306,6 +330,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
       onRemove={async id => { await remove(id); notifyHighlights(); }} />}
+    {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onClose={closeAudio} />}
     <footer className="reader-controls">
       <button className="secondary" disabled={loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
       <button aria-pressed={me.done} disabled={loading || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>

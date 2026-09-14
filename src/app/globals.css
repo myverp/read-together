@@ -83,3 +83,11 @@ p { line-height: 1.5; }
 @media (min-width: 1040px) { .reader { border-inline: 1px solid #e5e5ea; } }
 
 .reader-status .room-exit { display: grid; place-items: center; width: 48px; height: 48px; padding: 10px; flex-shrink: 0; }
+.audio-dialog input, .audio-dialog select { width: 100%; min-height: 48px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; background: white; color: inherit; font: inherit; font-size: 16px; }
+.audio-dialog summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--accent); font-weight: 600; }
+.audio-dialog details { margin-bottom: 16px; }
+.audio-dialog audio, .audio-generate { width: 100%; }
+.audio-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.audio-cancel { margin-top: 12px; width: 100%; }
+.audio-dialog a { color: var(--accent); }
+.audio-dialog select:focus-visible, .audio-dialog summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
