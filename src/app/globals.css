@@ -81,3 +81,5 @@ p { line-height: 1.5; }
   .reader-controls { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
 }
 @media (min-width: 1040px) { .reader { border-inline: 1px solid #e5e5ea; } }
+
+.reader-status .room-exit { display: grid; place-items: center; width: 48px; height: 48px; padding: 10px; flex-shrink: 0; }

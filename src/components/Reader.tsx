@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
 import { useRoom } from "@/lib/use-room";
 import type { Room } from "@/lib/types";
@@ -174,7 +175,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
         <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Share the room code"}</span>
       </div>
-      <button className="secondary" onClick={onExit}>Exit</button>
+      <button className="secondary room-exit" onClick={onExit} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </section>
     <p className="connection" role="status">{connection}</p>
     </div>
