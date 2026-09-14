@@ -48,3 +48,13 @@ Deterministic checks cover retry growth/cap/reset, initial and later publication
 Removed the requested home copy, reader title/code, and highlight hint. Exit is now at the right of the reader positions row, including mobile layouts. TypeScript and the Vercel production build passed. Production reading tests passed on Android Chromium and iOS WebKit, including collapse/expand, two-reader sync and offline recovery. Mobile screenshots inspected. Physical devices were not tested.
 Deployment: dpl_CdBJ5NoAZAADf3Xrar68DVoi7ukq.
 
+
+## Apple HIG-inspired visual update — 2026-09-14
+
+- Changed CSS only: system typography, grouped home surfaces, blue action hierarchy, compact reader controls, and refined highlight dialog. Existing application logic and labels remain unchanged.
+- Design sources and rationale: docs/design.md.
+- Passed: TypeScript, Vercel production build, all 8 deterministic Presence tests.
+- Read-only in-app browser inspection confirmed the deployed homepage layout.
+- Production: https://read-together-delta.vercel.app/; deployment dpl_GibwtYdtvsEKt5dN1BFZQTxY8vPf, code commit 2cab0f5.
+- Pending: redesigned reader/dialog visual inspection and mobile Chromium/WebKit regressions. Two test launches were rejected by automatic approval review because its model was at capacity. No new end-to-end pass is claimed.
+- Commits are local; no GitHub push was requested for this change.
