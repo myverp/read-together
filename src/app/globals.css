@@ -91,3 +91,5 @@ p { line-height: 1.5; }
 .audio-cancel { margin-top: 12px; width: 100%; }
 .audio-dialog a { color: var(--accent); }
 .audio-dialog select:focus-visible, .audio-dialog summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.audio-check { display: flex !important; align-items: center; gap: 10px; min-height: 44px; margin: 8px 0 16px; font-weight: 600; }
+.audio-check input { width: 20px; min-height: 0; height: 20px; margin: 0; padding: 0; border: 0; background: transparent; accent-color: var(--accent); }

@@ -11,7 +11,7 @@ A small web app for two people reading the same EPUB. Read at your own pace, see
 - Mark your current position as **Done here**.
 - Highlight text with an optional comment. Each reader has a consistent, distinct color.
 - Collapse the top panel for more reading space and resume from the same browser later.
-- Listen to the current page using your own ElevenLabs key, with voice selection and native audio controls.
+- Listen to the current page with a free browser-provided voice, or with your own ElevenLabs key.
 
 Designed for mobile screens, including Android and iOS. No library, chat, PDF support, or profiles.
 
@@ -72,14 +72,15 @@ Import this repository into Vercel as a Next.js project. Add all three environme
 ## Listen to a page
 
 1. Open a book and tap the headphones button.
-2. Enter an [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys) with **Text to Speech** and **Voices read** permissions. Set a spending limit in ElevenLabs.
-3. Load voices, choose one, and select **Generate page audio**. Then press Play; the native player supports pause and seeking on mobile.
+2. **Device voice** is free and selected by default. Choose any system voice installed in the browser and a speed from 0.75x to 2x, then select **Listen to this page**. Voice availability is controlled by the device and browser.
+3. Enable **Continue reading** to turn exactly one page through epub.js after each completed page, until the book ends. Manual navigation, highlights, comments, and Exit stop the speech.
+4. To use **ElevenLabs**, switch modes, enter an [ElevenLabs API key](https://elevenlabs.io/app/settings/api-keys) with **Text to Speech** and **Voices read** permissions, load voices, and generate audio for the current page. It never generates following pages automatically.
 
-The key and selected voice stay in memory until you exit or reload the reader. **Forget key** clears them immediately. No new environment variable, account system, or database migration is needed.
+The ElevenLabs key stays in memory until you exit or reload the reader. **Forget key** clears it immediately. The selected mode, system voice, speed, and Continue reading preference are stored locally; no key is stored in browser storage, the URL, Supabase, or server logs. No new environment variable, account system, or database migration is needed.
 
 Only text between the visible page's start and end CFI is sent through a room-authorized server route to ElevenLabs. Generation uses [Multilingual v2](https://elevenlabs.io/docs/overview/models), returns MP3, and consumes your ElevenLabs credits. The provider's own data-retention terms apply. The app does not store the key, text, or audio in its database or logs. Responses are not cached; replay within the open audio window does not generate again.
 
-Closing the audio window stops playback and cancels pending requests; cancellation cannot guarantee a refund for generation already started by ElevenLabs. The page snapshot stays fixed while settings are open so the phone keyboard does not change the text being read. Close the window before turning pages. Text-free pages and pages above 10,000 characters show an error rather than silently skipping or truncating text. No automatic page turning or background audio guarantee.
+Closing the audio window stops playback and cancels pending requests; cancellation cannot guarantee a refund for generation already started by ElevenLabs. The page snapshot stays fixed while settings are open so the phone keyboard does not change the text being read. Text-free pages and pages above 10,000 characters show an error rather than silently skipping or truncating text. Device voice does not require a server request; browser support and installed voices vary, especially on iPhone.
 
 ## Checks
 
@@ -87,6 +88,7 @@ Closing the audio window stops playback and cancels pending requests; cancellati
 npm run typecheck
 npm run test:presence
 node --test checks/elevenlabs.test.mjs
+node --test checks/device-speech.test.mjs
 npm run build
 npx playwright install chromium webkit
 npm test

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
 import { useRoom } from "@/lib/use-room";
@@ -7,7 +7,7 @@ import type { Room } from "@/lib/types";
 import { useHighlights } from "@/lib/use-highlights";
 import { HIGHLIGHT_COLORS } from "@/lib/highlights";
 import HighlightDialog, { type Selection, type HighlightDialogState } from "./HighlightDialog";
-import PageAudio, { type AudioVoice } from "./PageAudio";
+import PageAudio, { type AudioVoice, type PageAudioController } from "./PageAudio";
 import { visiblePageText } from "@/lib/page-text";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: () => void }) {
@@ -28,6 +28,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   const [audioKey, setAudioKey] = useState("");
   const [audioVoice, setAudioVoice] = useState<AudioVoice | null>(null);
   const audioOpen = useRef(false);
+  const audioController = useRef<PageAudioController | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [highlightDialog, setHighlightDialog] = useState<HighlightDialogState | null>(null);
   const shownDialog = useRef(highlightDialog);
@@ -38,6 +39,11 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   swipeNavigate.current = navigate;
   current.current = me;
   publish.current = update;
+  const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
+
+  useEffect(() => () => { audioController.current?.stop(); }, []);
+  useEffect(() => { if (selection) audioController.current?.stop(); }, [selection]);
+  useEffect(() => { if (highlightDialog) audioController.current?.pause(); }, [highlightDialog]);
 
   useEffect(() => {
     if (!viewer.current) return;
@@ -148,7 +154,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     if (!reader || loading) return;
     // epub.js keys annotations by CFI: identical selections share one clickable overlay.
     const groups = new Map(highlights.map(mark => [mark.cfi, mark]));
-    const openMark = (cfi: string) => { setSelection(null); setHighlightDialog({ cfi }); };
+    const openMark = (cfi: string) => { audioController.current?.pause(); setSelection(null); setHighlightDialog({ cfi }); };
     groups.forEach(mark => {
       try {
         reader.annotations.highlight(mark.cfi, { id: mark.id }, () => openMark(mark.cfi), "shared-highlight", {
@@ -269,9 +275,10 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     setSelection(null);
   }
 
-  async function navigate(target: "prev" | "next" | string) {
+  async function navigate(target: "prev" | "next" | string, continuing = false) {
     const reader = rendition.current;
     if (!reader || navigationBusy.current) return;
+    if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
     clearSelection();
     setTurning(true); setError("");
@@ -279,6 +286,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       if (target === "prev") await reader.prev();
       else if (target === "next") await reader.next();
       else await reader.display(target);
+      if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
     } catch { setError("Could not turn to that position. Try reopening the room."); }
     finally { navigationBusy.current = false; setTurning(false); }
   }
@@ -298,6 +306,22 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     if (element) rendition.current?.resize(element.clientWidth, element.clientHeight);
   }
 
+  async function nextAudioPage() {
+    const currentReader = rendition.current;
+    if (!currentReader || (currentReader.currentLocation() as unknown as Location | null)?.atEnd) return null;
+    await navigate("next", true);
+    const reader = rendition.current;
+    if (!reader) return null;
+    const page = visiblePageText(reader);
+    setAudioPage(page);
+    return page.text;
+  }
+
+  function exitReader() {
+    audioController.current?.stop();
+    onExit();
+  }
+
   return <main className="reader">
     <div id="reader-details" hidden={!detailsExpanded}>
     <section className="reader-status" aria-label="Reader positions">
@@ -306,7 +330,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
         <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Share the room code"}</span>
       </div>
-      <button className="secondary room-exit" onClick={onExit} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
+      <button className="secondary room-exit" onClick={exitReader} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </section>
     <p className="connection" role="status">{connection}</p>
     </div>
@@ -322,7 +346,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     {(error || storageError || highlightError) && <p className="error reader-error" role="alert">{error || storageError || highlightError}</p>}
     <div className="book-area"><div ref={viewer} className="book-view" aria-label="EPUB reader" />{loading && <p className="book-loading" role="status">Opening EPUB…</p>}
       {selection && <div className="selection-actions">
-        <button onClick={() => { setHighlightDialog({ draft: selection }); clearSelection(); }}>Highlight selection</button>
+        <button onClick={() => { audioController.current?.pause(); setHighlightDialog({ draft: selection }); clearSelection(); }}>Highlight selection</button>
         <button className="secondary" onClick={clearSelection} aria-label="Dismiss selection">×</button>
       </div>}
     </div>
@@ -330,7 +354,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
       onRemove={async id => { await remove(id); notifyHighlights(); }} />}
-    {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onClose={closeAudio} />}
+    {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onNextPage={nextAudioPage} onController={setAudioController} onClose={closeAudio} />}
     <footer className="reader-controls">
       <button className="secondary" disabled={loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
       <button aria-pressed={me.done} disabled={loading || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>

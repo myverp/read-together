@@ -19,17 +19,17 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   await expect(page.getByRole("button", { name: "Listen to page" })).toBeEnabled();
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
   const captured: string[] = [];
-  let fail = false, hold = false;
+  let fail = false;
   await page.route("**/api/rooms/*/speech", async route => {
     expect(route.request().headers()["x-elevenlabs-key"]).toBe("test-key-not-a-real-secret");
     const body = route.request().postDataJSON();
     if (body.action === "voices") return route.fulfill({ json: { voices: [{ id: "testVoice", name: "Test voice" }], hasMore: false } });
     captured.push(body.text);
-    if (hold) return;
     if (fail) return route.fulfill({ status: 429, json: { error: "ElevenLabs quota or request limit reached. Check your plan or try later." } });
     await route.fulfill({ contentType: "audio/wav", body: wav() });
   });
   await page.getByRole("button", { name: "Listen to page" }).click();
+  await page.getByLabel("Mode").selectOption("elevenlabs");
   await page.getByLabel("ElevenLabs API key").fill("test-key-not-a-real-secret");
   await page.getByRole("button", { name: "Load voices" }).click();
   await expect(page.getByLabel("Voice", { exact: true })).toHaveValue("testVoice");
@@ -65,12 +65,12 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("quota");
   expect(captured[1]).not.toBe(captured[0]);
   expect(captured[1]).not.toContain("The morning walk");
-  fail = false; hold = true;
+  fail = false;
   await page.getByRole("button", { name: "Generate page audio" }).click();
-  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("audio")).toBeVisible();
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.getByRole("button", { name: "Generate page audio" })).toBeEnabled();
-  await page.getByText("Audio settings", { exact: true }).click();
+  await page.locator("details").evaluate((element: HTMLDetailsElement) => { element.open = true; });
   await page.getByRole("button", { name: "Forget key" }).click();
   await expect(page.getByLabel("ElevenLabs API key")).toHaveValue("");
   await expect(page.getByRole("button", { name: "Generate page audio" })).toBeDisabled();
@@ -79,6 +79,56 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   const code = await page.evaluate(() => localStorage.getItem("read-together:room"));
   const denied = await page.request.post(`/api/rooms/${code}/speech`, { headers: { Authorization: `Bearer ${"f".repeat(64)}` }, data: { action: "voices" } });
   expect(denied.status()).toBe(403);
+});
+
+test("device voice plays, pauses, continues with epub.js, stops on navigation, and keeps only safe preferences", async ({ page }) => {
+  await page.addInitScript(() => {
+    const log: unknown[] = [];
+    let current: { onend?: () => void; onerror?: () => void; text: string; rate: number } | null = null;
+    const voices = [{ name: "Device test voice", lang: "en-US" }];
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: {
+      getVoices: () => voices, addEventListener: () => undefined, removeEventListener: () => undefined,
+      speak: (utterance: typeof current) => { current = utterance; log.push(["speak", utterance?.text, utterance?.rate]); },
+      pause: () => log.push(["pause"]), resume: () => log.push(["resume"]), cancel: () => { log.push(["cancel"]); current = null; },
+    } });
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { configurable: true, value: class { text: string; rate = 1; voice = null; onend = null; onerror = null; constructor(text: string) { this.text = text; } } });
+    Object.assign(window, { __deviceSpeech: { log, finish: () => current?.onend?.() } });
+  });
+  await page.goto("/");
+  await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
+  await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Device.epub", mimeType: "application/epub+zip", buffer: await epub() });
+  await page.getByRole("button", { name: "Upload & create room" }).click();
+  await page.getByRole("button", { name: "Listen to page" }).click();
+  await expect(page.getByLabel("Mode")).toHaveValue("device");
+  await page.getByLabel("Voice", { exact: true }).selectOption({ label: "Device test voice · en-US" });
+  await page.getByLabel("Speed").selectOption("1.25");
+  await page.getByLabel("Continue reading").check();
+  await page.getByRole("button", { name: "Listen to this page" }).click();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __deviceSpeech: { log: [string, ...unknown[]][] } }).__deviceSpeech.log.filter(item => item[0] === "speak").length)).toBe(1);
+  expect(await page.evaluate(() => (window as typeof window & { __deviceSpeech: { log: unknown[][] } }).__deviceSpeech.log.at(-1))).toEqual(["speak", expect.stringContaining("The morning walk"), 1.25]);
+  await page.getByRole("button", { name: "Pause" }).click();
+  await page.getByRole("button", { name: "Play" }).click();
+  expect(await page.evaluate(() => (window as typeof window & { __deviceSpeech: { log: unknown[][] } }).__deviceSpeech.log.slice(-2))).toEqual([["pause"], ["resume"]]);
+  await page.evaluate(() => (window as typeof window & { __deviceSpeech: { finish: () => void } }).__deviceSpeech.finish());
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __deviceSpeech: { log: [string, ...unknown[]][] } }).__deviceSpeech.log.filter(item => item[0] === "speak").length)).toBe(2);
+  // A real manual page control stops the device queue even if invoked while the modal is open.
+  await page.getByRole("button", { name: "Next page" }).evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __deviceSpeech: { log: [string, ...unknown[]][] } }).__deviceSpeech.log.some(item => item[0] === "cancel"))).toBe(true);
+  const stored = await page.evaluate(() => localStorage.getItem("read-together:audio-settings:v1") || "");
+  expect(stored).toContain('"mode":"device"'); expect(stored).toContain('"rate":1.25'); expect(stored).not.toMatch(/key|secret/i);
+  await page.getByRole("button", { name: "Close audio" }).click();
+});
+
+test("device voice offers ElevenLabs when speech synthesis is unavailable", async ({ page }) => {
+  await page.addInitScript(() => { Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined }); });
+  await page.goto("/");
+  await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
+  await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Unsupported.epub", mimeType: "application/epub+zip", buffer: await epub() });
+  await page.getByRole("button", { name: "Upload & create room" }).click();
+  await page.getByRole("button", { name: "Listen to page" }).click();
+  await expect(page.getByText("This browser does not support Device voice. Try ElevenLabs instead.")).toBeVisible();
+  await page.getByLabel("Mode").selectOption("elevenlabs");
+  await expect(page.getByLabel("ElevenLabs API key")).toBeVisible();
 });
 
 test("speech route rejects unauthenticated callers without contacting ElevenLabs", async ({ request }) => {
