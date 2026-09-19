@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { readerToken } from "@/lib/client";
+import { apiHeaders } from "@/lib/client";
 import { DeviceSpeechController, type SpeechState } from "@/lib/device-speech";
 
 export type AudioVoice = { id: string; name: string };
@@ -74,7 +74,7 @@ export default function PageAudio({ code, text, apiKey, setApiKey, preferredVoic
     const controller = new AbortController(); pending.current = controller; setBusy(action); setError("");
     if (action === "speech") resetAudio();
     try {
-      const response = await fetch(`/api/rooms/${code}/speech`, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", Authorization: `Bearer ${readerToken()}`, "x-elevenlabs-key": apiKey.trim() }, body: JSON.stringify(action === "voices" ? { action, search } : { action, voice, text: textRef.current }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]) });
+      const response = await fetch(`/api/rooms/${code}/speech`, { method: "POST", cache: "no-store", headers: await apiHeaders({ "x-elevenlabs-key": apiKey.trim() }), body: JSON.stringify(action === "voices" ? { action, search } : { action, voice, text: textRef.current }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]) });
       if (!response.ok) { const result = await response.json().catch(() => null); throw new Error(result?.error || "Audio request failed. Please try again."); }
       if (action === "voices") {
         const result = await response.json(); if (controller.signal.aborted) return;

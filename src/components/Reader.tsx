@@ -9,10 +9,11 @@ import { HIGHLIGHT_COLORS } from "@/lib/highlights";
 import HighlightDialog, { type Selection, type HighlightDialogState } from "./HighlightDialog";
 import PageAudio, { type AudioVoice, type PageAudioController } from "./PageAudio";
 import { visiblePageText } from "@/lib/page-text";
+import { api } from "@/lib/client";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: () => void }) {
-  const { highlights, error: highlightError, refresh, save, remove } = useHighlights(room.code);
-  const { me, partner, online, connection, storageError, update, notifyHighlights } = useRoom(room, refresh);
+  const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
+  const { me, partner, online, connection, storageError, update, notifyHighlights, takenOver, flushProgress } = useRoom(room, refresh);
   const viewer = useRef<HTMLDivElement>(null);
   const rendition = useRef<Rendition | null>(null);
   const current = useRef(me);
@@ -27,11 +28,14 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   const [audioPage, setAudioPage] = useState<{ text: string; id: string } | null>(null);
   const [audioKey, setAudioKey] = useState("");
   const [audioVoice, setAudioVoice] = useState<AudioVoice | null>(null);
+  const [currentColor, setCurrentColor] = useState(room.color ?? -1);
+  const partnerColor = colors?.[room.seat === 1 ? 1 : 0] ?? room.partnerColor ?? -1;
   const audioOpen = useRef(false);
   const audioController = useRef<PageAudioController | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [highlightDialog, setHighlightDialog] = useState<HighlightDialogState | null>(null);
   const shownDialog = useRef(highlightDialog);
+  const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
   const swipeState = useRef({ loading, selection, highlightDialog, atStart, atEnd });
   swipeState.current = { loading, selection, highlightDialog, atStart, atEnd };
@@ -42,6 +46,10 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
 
   useEffect(() => () => { audioController.current?.stop(); }, []);
+  useEffect(() => {
+    if (!takenOver) return;
+    audioController.current?.stop(); audioOpen.current = false; setAudioPage(null); setSelection(null); setHighlightDialog(null);
+  }, [takenOver]);
   useEffect(() => { if (selection) audioController.current?.stop(); }, [selection]);
   useEffect(() => { if (highlightDialog) audioController.current?.pause(); }, [highlightDialog]);
 
@@ -90,7 +98,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         });
         rendition.current = reader;
         const captureSelection = (cfi: string, contents: Contents) => {
-          if (disposed || shownDialog.current || audioOpen.current) return;
+          if (disposed || controlLost.current || shownDialog.current || audioOpen.current) return;
           const quote = contents.window.getSelection()?.toString().trim();
           if (!quote) return;
           if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); setSelection(null); return; }
@@ -101,7 +109,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         reader.themes.default({ body: { "font-family": "Georgia, serif", "font-size": "18px", "line-height": "1.6" },
           "img, svg": { "max-width": "100%", "max-height": "100%" } });
         reader.on("relocated", (location: Location) => {
-          if (disposed) return;
+          if (disposed || controlLost.current) return;
           setAtStart(location.atStart); setAtEnd(location.atEnd);
           const label = book?.navigation.get(location.start.href)?.label?.trim();
           const next = {
@@ -277,7 +285,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
 
   async function navigate(target: "prev" | "next" | string, continuing = false) {
     const reader = rendition.current;
-    if (!reader || navigationBusy.current) return;
+    if (!reader || navigationBusy.current || controlLost.current) return;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
     clearSelection();
@@ -292,7 +300,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   }
 
   function openAudio() {
-    if (!rendition.current || navigationBusy.current) return;
+    if (!rendition.current || navigationBusy.current || controlLost.current) return;
     try {
       const page = visiblePageText(rendition.current);
       clearSelection(); setError(""); audioOpen.current = true; setAudioPage(page);
@@ -317,9 +325,16 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     return page.text;
   }
 
-  function exitReader() {
+  async function exitReader() {
     audioController.current?.stop();
+    await flushProgress();
     onExit();
+  }
+
+  async function changeColor(color: number) {
+    if (takenOver || color === currentColor) return;
+    try { await api(`/api/rooms/${room.code}/color`, { color }, "PATCH"); setCurrentColor(color); await refresh(); notifyHighlights(); setError(""); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not change highlight color."); }
   }
 
   return <main className="reader">
@@ -330,13 +345,14 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
         <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Share the room code"}</span>
       </div>
-      <button className="secondary room-exit" onClick={exitReader} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
+      <button className="secondary room-exit" onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </section>
     <p className="connection" role="status">{connection}</p>
+    <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
     </div>
     <div className="reader-toolbar">
-      <button className="secondary" disabled={!partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)}>Jump to partner</button>
-      <button className="secondary details-toggle" disabled={loading || turning || !!highlightDialog} onClick={openAudio} aria-label="Listen to page" title="Listen to page">
+      <button className="secondary" disabled={takenOver || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)}>Jump to partner</button>
+      <button className="secondary details-toggle" disabled={takenOver || loading || turning || !!highlightDialog} onClick={openAudio} aria-label="Listen to page" title="Listen to page">
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/></svg>
       </button>
       <button className="secondary details-toggle" aria-expanded={detailsExpanded} aria-controls="reader-details" aria-label={detailsExpanded ? "Collapse room details" : "Expand room details"} onClick={() => setDetailsExpanded(expanded => !expanded)}>
@@ -344,21 +360,22 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       </button>
     </div>
     {(error || storageError || highlightError) && <p className="error reader-error" role="alert">{error || storageError || highlightError}</p>}
+    {takenOver && <div className="taken-over" role="alert"><strong>Continued on another device</strong><span>This reader is now view-only. Exit and choose Continue here to take control again.</span></div>}
     <div className="book-area"><div ref={viewer} className="book-view" aria-label="EPUB reader" />{loading && <p className="book-loading" role="status">Opening EPUB…</p>}
-      {selection && <div className="selection-actions">
+      {selection && !takenOver && <div className="selection-actions">
         <button onClick={() => { audioController.current?.pause(); setHighlightDialog({ draft: selection }); clearSelection(); }}>Highlight selection</button>
         <button className="secondary" onClick={clearSelection} aria-label="Dismiss selection">×</button>
       </div>}
     </div>
-    {highlightDialog && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
+    {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
       onRemove={async id => { await remove(id); notifyHighlights(); }} />}
     {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onNextPage={nextAudioPage} onController={setAudioController} onClose={closeAudio} />}
     <footer className="reader-controls">
-      <button className="secondary" disabled={loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
-      <button aria-pressed={me.done} disabled={loading || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
-      <button className="secondary" disabled={loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page">Next →</button>
+      <button className="secondary" disabled={takenOver || loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
+      <button aria-pressed={me.done} disabled={takenOver || loading || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
+      <button className="secondary" disabled={takenOver || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page">Next →</button>
     </footer>
   </main>;
 }

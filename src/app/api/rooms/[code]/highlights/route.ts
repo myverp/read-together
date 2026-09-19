@@ -1,13 +1,13 @@
 import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
-import { admin, fail, HttpError, tokenHash } from "@/lib/server";
+import { admin, controlFor, fail, HttpError, identity, seatFor } from "@/lib/server";
 import { HIGHLIGHT_COLORS, isHighlightInput, type Highlight, type HighlightState } from "@/lib/highlights";
 
 type Context = { params: Promise<{ code: string }> };
 
 async function handle(request: Request, context: Context) {
   try {
-    const hash = tokenHash(request);
+    const who = await identity(request);
     const { code } = await context.params;
     if (!/^[A-F0-9]{12}$/.test(code)) throw new HttpError("Invalid room code.");
     const writing = request.method !== "GET";
@@ -22,12 +22,15 @@ async function handle(request: Request, context: Context) {
     const db = admin();
     for (let attempt = 0; attempt < 8; attempt++) {
       const { data: room, error } = await db.from("reading_rooms")
-        .select("reader_one,reader_two,ready,highlight_state").eq("code", code).maybeSingle();
+        .select("*").eq("code", code).maybeSingle();
       if (error) throw error;
-      if (!room || !room.ready || (hash !== room.reader_one && hash !== room.reader_two)) throw new HttpError("Join this room before accessing highlights.", 403);
-      const seat = hash === room.reader_one ? 1 : 2;
+      const seat = room && seatFor(room, who);
+      if (!room || !room.ready || !seat) throw new HttpError("Join this room before accessing highlights.", 403);
+      const linked = !!(who.userId && (seat === 1 ? room.reader_one_user : room.reader_two_user) === who.userId);
+      const control = controlFor(room, seat);
+      if (writing && linked && control.hash !== who.controlHash) throw new HttpError("This room continued on another device.", 409, { takenOver: true });
       const state = room.highlight_state as HighlightState;
-      const result = () => NextResponse.json({ revision: state.revision, items: state.items }, { headers: { "Cache-Control": "no-store" } });
+      const result = () => NextResponse.json({ revision: state.revision, items: state.items, colors: state.colors }, { headers: { "Cache-Control": "no-store" } });
       if (!writing) return result();
       const next: HighlightState = { ...state, revision: state.revision + 1 };
       if (request.method === "POST" && isHighlightInput(input)) {
@@ -49,10 +52,12 @@ async function handle(request: Request, context: Context) {
         next.items = state.items.filter(h => h.id !== id);
       }
       // Compare-and-swap also serializes color allocation for concurrent readers.
-      const { data: saved, error: updateError } = await db.from("reading_rooms").update({ highlight_state: next })
-        .eq("code", code).eq("highlight_state->>revision", String(state.revision)).select("code").maybeSingle();
+      let query = db.from("reading_rooms").update({ highlight_state: next })
+        .eq("code", code).eq("highlight_state->>revision", String(state.revision));
+      if (linked) query = query.eq(control.hashColumn, who.controlHash).eq(control.versionColumn, control.version);
+      const { data: saved, error: updateError } = await query.select("code").maybeSingle();
       if (updateError) throw updateError;
-      if (saved) return NextResponse.json({ revision: next.revision, items: next.items }, { headers: { "Cache-Control": "no-store" } });
+      if (saved) return NextResponse.json({ revision: next.revision, items: next.items, colors: next.colors }, { headers: { "Cache-Control": "no-store" } });
     }
     throw new HttpError("Your partner is saving too. Please try again.", 409);
   } catch (error) { return fail(error); }

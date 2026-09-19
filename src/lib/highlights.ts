@@ -12,7 +12,7 @@ export type Highlight = {
   color: number;
   seat: 1 | 2;
 };
-export type HighlightSnapshot = { revision: number; items: Highlight[] };
+export type HighlightSnapshot = { revision: number; items: Highlight[]; colors?: number[] };
 export type HighlightState = HighlightSnapshot & { colors: number[] };
 
 export function isHighlightInput(value: unknown): value is Pick<Highlight, "id" | "cfi" | "quote" | "comment"> {

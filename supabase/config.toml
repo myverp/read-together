@@ -2,14 +2,14 @@ project_id = "read-together"
 
 [api]
 enabled = true
-port = 58321
+port = 45321
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 58322
-shadow_port = 58320
+port = 45322
+shadow_port = 45320
 major_version = 17
 
 [db.seed]
@@ -20,11 +20,11 @@ enabled = true
 
 [studio]
 enabled = false
-port = 58323
+port = 45323
 
 [local_smtp]
-enabled = false
-port = 58324
+enabled = true
+port = 45324
 
 [storage]
 enabled = true
@@ -33,6 +33,18 @@ file_size_limit = "25MiB"
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
+
+[auth.email]
+enable_confirmations = true
+otp_length = 6
+
+[auth.email.template.magic_link]
+subject = "Your Read together sign-in code"
+content_path = "./supabase/templates/sign-in.html"
+
+[auth.email.template.confirmation]
+subject = "Your Read together sign-in code"
+content_path = "./supabase/templates/sign-in.html"
 
 [analytics]
 enabled = false

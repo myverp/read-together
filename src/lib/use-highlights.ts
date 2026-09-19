@@ -42,5 +42,5 @@ export function useHighlights(code: string) {
     const next = await api<HighlightSnapshot>(endpoint, { id }, "DELETE");
     accept(next);
   }
-  return { highlights: snapshot.items, error, refresh, save, remove };
+  return { highlights: snapshot.items, colors: snapshot.colors, error, refresh, save, remove };
 }

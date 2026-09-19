@@ -5,7 +5,17 @@ export type Room = {
   seat: 1 | 2;
   topic: string;
   bookUrl: string;
+  me?: Position;
+  partner?: Position;
+  controlVersion?: number;
+  profile?: Profile;
+  color?: number;
+  partnerColor?: number;
 };
+export const AVATARS = ["book", "leaf", "moon", "star", "tea"] as const;
+export type Avatar = typeof AVATARS[number];
+export type Profile = { userId: string; email?: string; name: string; avatar: Avatar; preferredColor: number };
+export type RoomSummary = { code: string; title: string; seat: 1 | 2; createdAt: string; color: number };
 export const EMPTY_POSITION: Position = { cfi: "", section: "Opening book", done: false };
 export const MAX_EPUB_BYTES = 25 * 1024 * 1024;
 
