@@ -135,12 +135,15 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         selectionTimer = setInterval(() => {
           if (disposed || shownDialog.current || audioOpen.current || document.visibilityState !== "visible") return;
           const contents = reader.getContents() as unknown as Contents[];
+          let hasSelection = false;
           for (const content of contents) {
             const selected = content.window.getSelection();
             if (!selected?.rangeCount || selected.isCollapsed) continue;
+            hasSelection = true;
             try { captureSelection(content.cfiFromRange(selected.getRangeAt(0)), content); }
             catch { /* The view may have unloaded during a page turn. */ }
           }
+          if (!hasSelection) setSelection(previous => previous ? null : previous);
         }, 400);
         setLoading(false);
       } catch (e) {

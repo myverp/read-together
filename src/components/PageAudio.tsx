@@ -90,7 +90,7 @@ export default function PageAudio({ code, text, apiKey, setApiKey, preferredVoic
   }
   const deviceUnsupported = speechState === "unsupported";
   return <dialog ref={dialog} className="highlight-dialog audio-dialog" aria-labelledby="audio-heading" onCancel={event => { event.preventDefault(); onClose(); }}>
-    <div className="highlight-dialog-header"><h2 id="audio-heading" ref={heading} tabIndex={-1}>Listen to this page</h2><button className="secondary" aria-label="Close audio" onClick={onClose}>×</button></div>
+    <div className="highlight-dialog-header"><h2 id="audio-heading" ref={heading} tabIndex={-1}>Listen to this page</h2><button className="secondary" aria-label="Close audio" onClick={onClose}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 5l14 14M19 5 5 19" /></svg></button></div>
     <p className="muted">{text.length.toLocaleString()} characters</p>
     <label htmlFor="audio-mode">Mode</label><select id="audio-mode" value={mode} disabled={!!busy} onChange={event => { stopAll(); setMode(event.target.value as Mode); setError(""); }}><option value="device">Device voice</option><option value="elevenlabs">ElevenLabs</option></select>
     {mode === "device" ? <>
@@ -98,7 +98,7 @@ export default function PageAudio({ code, text, apiKey, setApiKey, preferredVoic
         <label htmlFor="device-voice">Voice</label><select id="device-voice" value={systemVoice} onChange={event => { device.current?.stop(); setSystemVoice(event.target.value); }} disabled={!systemVoices.length}><option value="">{systemVoices.length ? "Browser default" : "Loading voices…"}</option>{systemVoices.map(item => <option key={`${item.name}-${item.lang}`} value={item.name}>{item.name} · {item.lang}</option>)}</select>
         <label htmlFor="device-rate">Speed</label><select id="device-rate" value={rate} onChange={event => { device.current?.stop(); setRate(Number(event.target.value)); }}>{RATES.map(value => <option key={value} value={value}>{value}x</option>)}</select>
         <label className="audio-check"><input type="checkbox" checked={continueReading} onChange={event => setContinueReading(event.target.checked)} /> Continue reading</label>
-        <div className="audio-actions"><button className="audio-generate" onClick={playDevice}>{speechState === "speaking" ? "Pause" : speechState === "paused" ? "Play" : "Listen to this page"}</button><button className="secondary" onClick={() => device.current?.stop()} disabled={speechState === "idle"}>Stop</button></div>
+        <div className="audio-actions audio-playback-actions"><button className="audio-generate" onClick={playDevice}>{speechState === "speaking" ? "Pause" : speechState === "paused" ? "Play" : "Listen to this page"}</button><button className="secondary" onClick={() => device.current?.stop()} disabled={speechState === "idle"}>Stop</button></div>
         {continueReading && <p className="muted">After each page, this turns exactly one page with epub.js and continues until the end of the book.</p>}
       </>}
     </> : <>
