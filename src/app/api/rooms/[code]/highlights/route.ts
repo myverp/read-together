@@ -22,7 +22,7 @@ async function handle(request: Request, context: Context) {
     const db = admin();
     for (let attempt = 0; attempt < 8; attempt++) {
       const { data: room, error } = await db.from("reading_rooms")
-        .select("*").eq("code", code).maybeSingle();
+        .select("ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,highlight_state").eq("code", code).maybeSingle();
       if (error) throw error;
       const seat = room && seatFor(room, who);
       if (!room || !room.ready || !seat) throw new HttpError("Join this room before accessing highlights.", 403);

@@ -10,6 +10,7 @@ A small web app for two people reading the same EPUB. Read at your own pace, see
 - Read independently, see your partner's position live, or jump to their exact place.
 - Mark your current position as **Done here**.
 - Highlight text with an optional comment. Each reader has a consistent, distinct color.
+- Draw over a visible text page, see your partner’s saved drawings, and open a drawing to view its captured text layout and strokes. Each reader can delete only their own drawings.
 - Use a free email-code profile to reopen your rooms, progress, highlights, and preferred color on another device.
 - Collapse the top panel for more reading space and resume from the same browser later.
 - Listen to the current page with a free browser-provided voice, or with your own ElevenLabs key.
@@ -50,7 +51,7 @@ Failed Presence updates reconnect with exponential backoff and a single pending 
 Requires **Node.js 24** and a Supabase project.
 
 1. Install dependencies with `npm ci`.
-2. Run [supabase/setup.sql](supabase/setup.sql), then [the profile migration](supabase/migrations/20260918152333_add_profiles_and_cross_device_seats.sql), in the Supabase SQL editor. They create the private EPUB bucket, room data, and optional profile data. Allow public Realtime channels; no Postgres replication publication is needed.
+2. Run [supabase/setup.sql](supabase/setup.sql), then [the profile migration](supabase/migrations/20260918152333_add_profiles_and_cross_device_seats.sql) and [the drawing migration](supabase/migrations/20260922000000_add_drawing_state.sql), in the Supabase SQL editor. They create the private EPUB bucket, room data, optional profile data, and shared drawing state. Allow public Realtime channels; no Postgres replication publication is needed.
 3. Copy [.env.example](.env.example) to `.env.local` and fill in:
 
    ```dotenv
@@ -91,6 +92,12 @@ Only text between the visible page's start and end CFI is sent through a room-au
 
 Closing the audio window stops playback and cancels pending requests; cancellation cannot guarantee a refund for generation already started by ElevenLabs. The page snapshot stays fixed while settings are open so the phone keyboard does not change the text being read. Text-free pages and pages above 10,000 characters show an error rather than silently skipping or truncating text. Device voice does not require a server request; browser support and installed voices vary, especially on iPhone.
 
+## Draw on a page
+
+Tap the pen icon, draw with a finger, stylus, or mouse, and choose Save. Undo removes the last stroke; Clear removes all strokes in the current draft. Cancel never creates a drawing. Drawing stops audio and prevents page turns and text selection until you save or cancel. The eye button hides or shows all saved drawings on this device without changing highlights or your partner’s view. Tap a saved stroke to view the text positions and drawing captured at save time. Your own drawing can be deleted from that view.
+
+Saved strokes are anchored to a word near the drawing with an EPUB CFI, then moved and uniformly scaled when a page reflows on another screen. The captured view stores visible word positions, measured widths, font properties, and strokes as data; it does not execute EPUB markup or preserve images. EPUB font availability can affect the reconstructed text appearance. Exact alignment with the same words on a different screen is not guaranteed. If the page size changes during an unsaved draft, cancel and start again to keep the geometry aligned. Each room can hold up to 20 drawings and 1.5 MB of drawing data.
+
 ## Checks
 
 ```sh
@@ -98,7 +105,9 @@ npm run typecheck
 npm run test:presence
 node --test checks/elevenlabs.test.mjs
 node --test checks/device-speech.test.mjs
+node --test checks/drawings.test.mjs
 node --env-file=.env.local --test checks/profile-security.test.mjs
+node --env-file=.env.local --test checks/drawing-security.test.mjs
 npm run build
 npx playwright install chromium webkit
 npm test
