@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 import { api, supabase } from "@/lib/client";
 import { AVATARS, EMPTY_POSITION, isPosition, type Avatar, type Profile, type RoomSummary } from "@/lib/types";
 import { HIGHLIGHT_COLORS } from "@/lib/highlights";
+import { savedRooms } from "@/lib/room-history";
 
 const AVATAR_LABELS: Record<Avatar, string> = { book: "📖", leaf: "🌿", moon: "🌙", star: "★", tea: "☕" };
 
@@ -43,7 +44,7 @@ export default function AccountPanel({ onOpenRoom }: { onOpenRoom: (code: string
   async function linkRooms() {
     setBusy("Linking rooms…");
     try {
-      const saved = JSON.parse(localStorage.getItem("read-together:rooms") || "[]") as { code: string; seat: 1 | 2 }[];
+      const saved = savedRooms(localStorage);
       const entries = saved.map(room => {
         let position = EMPTY_POSITION;
         try { const value = JSON.parse(localStorage.getItem(`read-together:${room.code}:${room.seat}`) || "null"); if (isPosition(value)) position = value; } catch { /* Keep empty position. */ }

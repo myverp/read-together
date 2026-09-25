@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { api, readerToken, supabase } from "@/lib/client";
 import { MAX_EPUB_BYTES, type Room } from "@/lib/types";
 import AccountPanel from "@/components/AccountPanel";
+import { rememberRoom } from "@/lib/room-history";
 const Reader = dynamic(() => import("@/components/Reader"), { ssr: false, loading: () => <p>Opening reader…</p> });
 
 export default function Home() {
@@ -22,10 +23,6 @@ export default function Home() {
     } catch { setError("Enable browser storage to remember your reader seat."); }
   }, []);
 
-  function remember(next: Room) {
-    const saved = JSON.parse(localStorage.getItem("read-together:rooms") || "[]") as { code: string; seat: 1 | 2 }[];
-    localStorage.setItem("read-together:rooms", JSON.stringify([{ code: next.code, seat: next.seat }, ...saved.filter(room => room.code !== next.code)].slice(0, 50)));
-  }
   async function enter(roomCode: string, takeover = false) {
     let next: Room;
     try { next = await api<Room>(`/api/rooms/${roomCode}`, takeover ? { takeover: true } : undefined); }
@@ -34,8 +31,7 @@ export default function Home() {
       if (details?.takeoverRequired) { setTakeoverCode(roomCode); throw new Error("This profile is open on another device. Choose Continue here to take control."); }
       throw error;
     }
-    localStorage.setItem("read-together:room", roomCode);
-    remember(next); setTakeoverCode("");
+    rememberRoom(localStorage, next); setTakeoverCode("");
     setCode(roomCode);
     setRoom(next);
   }
