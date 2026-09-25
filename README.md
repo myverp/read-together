@@ -115,7 +115,7 @@ npm test
 
 Browser tests need a configured Supabase backend and create rooms/uploads, so use a development project. They cover two-reader sync, private book access, highlights, reconnects, third-reader rejection, email-code profiles, guest-room linking, and device takeover. Test EPUBs are generated from original fixture text.
 
-Tests have passed with mobile Chromium and WebKit emulation. Physical Android and iOS devices have not been verified.
+Tests have passed with mobile Chromium and WebKit emulation. The project owner reports earlier physical-device checks, but their device models, tested flows, and results have not been documented in [VERIFICATION.md](VERIFICATION.md); no specific hardware behavior is claimed from those checks.
 
 Audio browser tests use a playable fixture response; provider tests check request forwarding, error sanitization, limits, and cancellation with mocked fetch. They do not validate ElevenLabs voice quality or consume real credits.
 

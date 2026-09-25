@@ -1,3 +1,7 @@
+# Physical-device testing note — 25 September 2026
+
+The project owner reports that physical-device checks were performed earlier but were not recorded here. The device models, browsers, dates, tested flows, and results are not documented, so this note does not claim that any specific feature passed on Android or iOS hardware. Statements below that say physical devices were not tested or verified describe the scope of those dated runs, not the full history of the project.
+
 # Page narration verification — 14 September 2026
 
 - TypeScript: passed.
