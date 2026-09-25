@@ -51,7 +51,7 @@ Failed Presence updates reconnect with exponential backoff and a single pending 
 Requires **Node.js 24** and a Supabase project.
 
 1. Install dependencies with `npm ci`.
-2. Run [supabase/setup.sql](supabase/setup.sql), then [the profile migration](supabase/migrations/20260918152333_add_profiles_and_cross_device_seats.sql) and [the drawing migration](supabase/migrations/20260922000000_add_drawing_state.sql), in the Supabase SQL editor. They create the private EPUB bucket, room data, optional profile data, and shared drawing state. Allow public Realtime channels; no Postgres replication publication is needed.
+2. Run [supabase/setup.sql](supabase/setup.sql), then [the profile migration](supabase/migrations/20260918152333_add_profiles_and_cross_device_seats.sql), [the drawing migration](supabase/migrations/20260922000000_add_drawing_state.sql), and [the upload guard migration](supabase/migrations/20260925151034_protect_public_room_creation.sql), in that order in the Supabase SQL editor. They create the private EPUB bucket, room/profile/annotation data, and server-only upload limits. Allow public Realtime channels; no Postgres replication publication is needed.
 3. Copy [.env.example](.env.example) to `.env.local` and fill in:
 
    ```dotenv
@@ -77,7 +77,9 @@ For Docker-based Supabase setup and detailed behavior, see [the setup guide](doc
 
 ## Deploy
 
-Import this repository into Vercel as a Next.js project. Add all three environment variables **before building**, then deploy. Public variables are embedded in the browser bundle during the build. Use HTTPS when sharing with phones.
+Import this repository into Vercel as a Next.js project. Apply all database migrations and add the three Supabase environment variables **before building**. Add a random 16+ character `CRON_SECRET` as a server-only Production variable before deploying the daily maintenance job. Public variables are embedded in the browser bundle during the build. Use HTTPS when sharing with phones.
+
+Room creation is limited to 10 per browser per hour, and on Vercel to 30 per client IP per hour or 100 per day. The server reserves up to 25 MiB for each incomplete upload and stops new rooms before the 500 MiB EPUB budget is exceeded. The daily maintenance job removes incomplete rooms and files after 24 hours, prunes old limit counters, and logs actual/reserved storage usage with an 80% warning. It never removes completed rooms. Check Vercel function logs and Supabase Storage usage for capacity planning; this budget is an application guard, not a billing cap.
 
 ## Listen to a page
 
@@ -99,6 +101,8 @@ Tap the pen icon, draw with a finger, stylus, or mouse, and choose Save. Undo re
 Saved strokes are anchored to a word near the drawing with an EPUB CFI, then moved and uniformly scaled when a page reflows on another screen. The captured view stores visible word positions, measured widths, font properties, and strokes as data; it does not execute EPUB markup or preserve images. EPUB font availability can affect the reconstructed text appearance. Exact alignment with the same words on a different screen is not guaranteed. If the page size changes during an unsaved draft, cancel and start again to keep the geometry aligned. Each room can hold up to 20 drawings and 1.5 MB of drawing data.
 
 ## Checks
+
+GitHub Actions runs `npm ci`, TypeScript, deterministic unit tests, and a production build on pushes to `main` and pull requests. It uses placeholder Supabase values only for build-time configuration; browser and database integration tests still require a separate development Supabase project.
 
 ```sh
 npm run typecheck
@@ -123,7 +127,7 @@ Audio browser tests use a playable fixture response; provider tests check reques
 
 - A guest is tied to browser storage. A profile can use another device by explicitly taking control; only the active device can write. Clearing storage does not free a seat.
 - Saving highlights requires a connection. There is no full offline book-download feature.
-- Rooms and books remain until manually removed; there is no automatic cleanup.
+- Completed rooms and books remain until manually removed. Only unfinished uploads are cleaned up automatically after 24 hours.
 - DRM-protected EPUBs and PDFs are unsupported. Large illustrated or fixed-layout books may behave differently.
 
 ## Code map

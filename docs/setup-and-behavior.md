@@ -22,14 +22,14 @@ Get-Content supabase/setup.sql -Raw | docker exec -i supabase_db_read-together p
 supabase status -o env
 ```
 
-Copy `.env.example` to `.env.local`. Use the local API URL, `ANON_KEY` for `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SERVICE_ROLE_KEY` for `SUPABASE_SECRET_KEY`. Those local development keys also work with the SDK. The isolated stack is named `read-together`, using ports 45320–45324 (outside the Windows port reservation encountered during development). Never commit these credentials. Apply the profile migration in `supabase/migrations/` after the base setup when upgrading an existing database. The SQL command uses psql because CLI 2.114.0 rejects multi-statement files in `db query`.
+Copy `.env.example` to `.env.local`. Use the local API URL, `ANON_KEY` for `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `SERVICE_ROLE_KEY` for `SUPABASE_SECRET_KEY`. Those local development keys also work with the SDK. The isolated stack is named `read-together`, using ports 45320–45324 (outside the Windows port reservation encountered during development). Never commit these credentials. Apply any missing migrations in `supabase/migrations/` after the base setup when upgrading an existing database. The SQL command uses psql because CLI 2.114.0 rejects multi-statement files in `db query`.
 
 Local sign-in emails stay in Mailpit at `http://127.0.0.1:45324`; they are not sent to real recipients. Both signup and repeat sign-in templates show a code. Enter the code in the app to finish signing in. Restart the local stack after changing Auth email templates.
 
 ### Option B: hosted Supabase
 
 1. Create a project at [Supabase](https://supabase.com/dashboard).
-2. Run `supabase/setup.sql` and the profile migration in `supabase/migrations/` in its SQL editor, in that order. For an existing installation, apply only the new migration after reviewing it.
+2. Run `supabase/setup.sql`, then the profile, drawing, and upload guard migrations in `supabase/migrations/`, in filename order. For an existing installation, apply only missing migrations after reviewing them.
 3. Copy `.env.example` to `.env.local` and enter the project URL, publishable key, and server-only secret key from the project's API settings. Never put the secret key in a `NEXT_PUBLIC_` variable.
 4. Realtime must allow public channels (the standard default). No Postgres replication/publication setup is needed; positions use Presence.
 5. For email profiles, enable the Email provider and configure custom SMTP under Supabase Auth. Set both **Confirm signup** and **Magic Link** email templates to the contents of `supabase/templates/sign-in.html`, which uses `{{ .Token }}`. Use a six-digit OTP to match the local configuration. Set the Site URL to the deployed application. Supabase's default mail sender is restricted to project-team addresses and is not a production email service. See [email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) and [SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp). Keep SMTP credentials in Supabase's configuration, never in the browser or Git.
@@ -65,7 +65,7 @@ Browser emulation is useful but is not a substitute for testing on actual Androi
 - Guests reopen rooms in the same browser; clearing its storage loses the guest credential. After signing in, explicitly link browser rooms to the profile to preserve their seats and annotations. Another device signed into that profile reuses its existing seat; **Continue here** transfers control and stops the former device from writing progress. Profiles do not create extra seats.
 - DRM-free EPUBs, up to 25 MB. No PDF. EPUB code is blocked by a script-src none Content Security Policy installed before each section is rendered. The iframe allows parent-installed event listeners so touch input works in WebKit; forms, popups, and top navigation remain sandbox-restricted. Heavy illustrated/fixed-layout books can behave differently or exceed a phone's memory.
 - Room codes are invitations. The first other browser with the code gets the second seat. Database rows have RLS enabled and no anonymous access; private files use temporary signed URLs. Realtime uses a random 256-bit channel capability returned only to the two seats. These are public Supabase channels with unguessable names, not authenticated private channels. Readers who have the channel capability must be trusted.
-- Intended for two trusted people, not an unrestricted public upload service. The per-browser creation cap is an accident guard, not abuse prevention. Uploads/rooms remain until manually removed in Supabase; incomplete uploads may leave unused room rows. No library or cleanup UI is included.
+- Intended for two trusted people, not an unrestricted public upload service. Room creation has browser and Vercel client-IP limits plus a 500 MiB EPUB creation budget. A daily server job removes incomplete uploads after 24 hours; completed rooms remain until manually removed in Supabase. No library or deletion UI is included.
 
 ## Verify
 

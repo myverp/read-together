@@ -13,6 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     if (error) throw error;
     if (!initial) throw new HttpError("Room not found. Check the code.", 404);
     let room = initial;
+    if (room.cleanup_started_at) throw new HttpError("This unfinished room has expired. Create a new room.", 410);
     let seat = seatFor(room, who);
     const linked = !!(seat && who.userId && (seat === 1 ? room.reader_one_user : room.reader_two_user) === who.userId);
 
@@ -55,8 +56,10 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       const { data: files, error: fileError } = await db.storage.from("epubs").list(room.book_path.split("/")[0]);
       if (fileError) throw fileError;
       if (!files?.some((file: { name: string }) => file.name === "book.epub")) throw new HttpError("The EPUB upload has not finished. Upload it again.", 409);
-      const { data: ready, error: updateError } = await db.from("reading_rooms").update({ ready: true }).eq("code", code).select("*").single();
-      if (updateError) throw updateError; room = ready;
+      const { data: ready, error: updateError } = await db.from("reading_rooms").update({ ready: true }).eq("code", code).is("cleanup_started_at", null).select("*").maybeSingle();
+      if (updateError) throw updateError;
+      if (!ready) throw new HttpError("This unfinished room has expired. Create a new room.", 410);
+      room = ready;
     }
     return await roomResponse(room, seat);
   } catch (error) { return fail(error); }

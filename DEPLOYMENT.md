@@ -29,8 +29,9 @@ The following were added to Vercel **Production before the build**:
 | `NEXT_PUBLIC_SUPABASE_URL` | Non-sensitive public configuration |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Non-sensitive publishable key |
 | `SUPABASE_SECRET_KEY` | Sensitive server-only secret |
+| `CRON_SECRET` | Random 16+ character server-only Production secret for daily cleanup |
 
-Modern `sb_publishable_` and `sb_secret_` keys are used. Real values are excluded by `.gitignore` and `.vercelignore`. `.env.production.local` is a private local copy; `.env.local` retains the local development backend. The source archive contains only `.env.example`.
+Modern `sb_publishable_` and `sb_secret_` keys are used. Real values are excluded by `.gitignore` and `.vercelignore`. `.env.production.local` is a private local copy; `.env.local` retains the local development backend. The source archive contains only `.env.example`. Apply `supabase/migrations/20260925151034_protect_public_room_creation.sql` before deploying code that calls `create_reading_room`. `vercel.json` schedules `/api/cron/room-maintenance` once daily; its handler requires `CRON_SECRET` and reports EPUB usage in function logs.
 
 ## Redeploy
 
