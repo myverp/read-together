@@ -8,6 +8,7 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
+    "test:unit": "node --test checks/presence.test.mjs checks/elevenlabs.test.mjs checks/drawings.test.mjs checks/device-speech.test.mjs checks/room-history.test.mjs checks/upload-guard.test.mjs",
     "test:presence": "node --test checks/presence.test.mjs"
   },
   "dependencies": {
