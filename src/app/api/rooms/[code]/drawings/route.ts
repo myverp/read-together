@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { admin, controlFor, fail, HttpError, identity, seatFor } from '@/lib/server';
 import { isDrawingInput, type Drawing, type DrawingState } from '@/lib/drawings';
-import { HIGHLIGHT_COLORS } from '@/lib/highlights';
 type Context = { params: Promise<{ code: string }> };
 async function handle(request: Request, context: Context) {
   try {
@@ -19,7 +18,7 @@ async function handle(request: Request, context: Context) {
     }
     const db = admin();
     for (let attempt = 0; attempt < 8; attempt++) {
-      const { data: room, error } = await db.from('reading_rooms').select('ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,highlight_state,drawing_state').eq('code', code).maybeSingle();
+      const { data: room, error } = await db.from('reading_rooms').select('ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,drawing_state').eq('code', code).maybeSingle();
       if (error) throw error;
       const seat = room && seatFor(room, who);
       if (!room || !room.ready || !seat) throw new HttpError('Join this room before accessing drawings.', 403);
@@ -33,15 +32,12 @@ async function handle(request: Request, context: Context) {
       if (request.method === 'POST' && isDrawingInput(input)) {
         if (state.items.some(item => item.id === input.id)) return result();
         if (state.items.length >= 20) throw new HttpError('This room has 20 drawings. Remove one before adding another.', 409);
-        const chosen = room.highlight_state?.colors?.[seat - 1] ?? -1;
-        const partner = room.highlight_state?.colors?.[seat === 1 ? 1 : 0] ?? -1;
-        const colorIndex = chosen >= 0 ? chosen : [seat === 1 ? 0 : 3, ...HIGHLIGHT_COLORS.map((_, i) => i)].find(i => i !== partner)!;
-        const color = HIGHLIGHT_COLORS[colorIndex];
+        const color = input.strokes[0].color;
         const drawing: Drawing = { id: input.id, cfi: input.cfi, anchor: [input.anchor[0], input.anchor[1]],
           page: { width: input.page.width, height: input.page.height, runs: input.page.runs.map(run => ({
             text: run.text, x: run.x, y: run.y, width: run.width, height: run.height, family: run.family,
             size: run.size, weight: run.weight, style: run.style, color: run.color,
-          })) }, strokes: input.strokes.map(stroke => ({ width: stroke.width, points: stroke.points.map(point => [point[0], point[1]]) })), color, seat };
+          })) }, strokes: input.strokes.map(stroke => ({ width: stroke.width, color: stroke.color, points: stroke.points.map(point => [point[0], point[1]]) })), color, seat };
         next.items = [...state.items, drawing];
         if (JSON.stringify(next).length > 1500000) throw new HttpError('This room has reached its drawing storage limit.', 413);
       } else {

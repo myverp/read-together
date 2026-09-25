@@ -13,7 +13,10 @@ const token = () => randomBytes(32).toString('hex');
 const drawing = () => ({
   id: randomUUID(), cfi: 'epubcfi(/6/2!/4/2,/1:0,/1:5)', anchor: [80, 60],
   page: { width: 390, height: 500, runs: [{ text: 'Hello', x: 50, y: 50, width: 60, height: 24, family: 'Georgia', size: 18, weight: '400', style: 'normal', color: '#111111' }] },
-  strokes: [{ width: 3, points: [[60, 60], [120, 90], [160, 50]] }],
+  strokes: [
+    { width: 3, color: '#FFD600', points: [[60, 60], [120, 90], [160, 50]] },
+    { width: 8, color: '#2962FF', points: [[65, 120], [170, 120]] },
+  ],
 });
 
 test('local drawing API preserves ownership, retries, concurrency and device control', { skip: !local, timeout: 90000 }, async () => {
@@ -55,6 +58,7 @@ test('local drawing API preserves ownership, retries, concurrency and device con
     const saved = await request(first, path, 'POST', { ...original, seat: 2, color: '#ff0000', ignored: 'not stored' });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.items[0].seat, 1);
+    assert.equal(saved.body.items[0].color, original.strokes[0].color);
     assert.equal(saved.body.items[0].ignored, undefined);
     const again = await request(first, path, 'POST', original);
     assert.equal(again.body.revision, saved.body.revision, 'a retried id cannot create a second drawing');

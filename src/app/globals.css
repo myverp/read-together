@@ -126,10 +126,32 @@ p { line-height: 1.5; }
 .saved-drawing-stroke { pointer-events: stroke; cursor: pointer; opacity: .9; }
 .saved-drawing-stroke:focus-visible { outline: 2px solid var(--accent); }
 .drawing-canvas { z-index: 4; touch-action: none; cursor: crosshair; }
-.drawing-tools { position: absolute; z-index: 5; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; max-width: calc(100% - 12px); padding: 5px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 8px 30px #1d1d1f28; }
-.drawing-tools label { display: flex; align-items: center; gap: 4px; font-size: .75rem; white-space: nowrap; padding-left: 4px; }
-.drawing-tools select { min-height: 38px; max-width: 86px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: inherit; font-size: .75rem; }
-.drawing-tools button { min-width: 38px; min-height: 38px; padding: 6px 8px; font-size: .75rem; border-radius: 10px; }
+.drawing-canvas.is-erasing { cursor: cell; }
+.drawing-tools { position: absolute; z-index: 5; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: min(410px, calc(100% - 24px)); padding: 12px; border: 1px solid #dfe2e7; border-radius: 20px; background: #fff; box-shadow: 0 10px 32px #1d1d1f24; }
+.drawing-appearance { display: flex; align-items: center; gap: 8px; }
+.drawing-color-picker { position: relative; flex: 0 0 44px; }
+.drawing-tools .drawing-color-current { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 4px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f7f8fa; }
+.drawing-current-swatch { width: 26px; height: 26px; border: 2px solid white; border-radius: 50%; background: var(--swatch-color); box-shadow: 0 0 0 1px #0003; }
+.drawing-palette { position: absolute; z-index: 7; left: 0; bottom: calc(100% + 10px); display: grid; grid-template-columns: repeat(5, 40px); gap: 2px; width: max-content; padding: 8px; border: 1px solid #dfe2e7; border-radius: 16px; background: #fff; box-shadow: 0 10px 32px #1d1d1f24; }
+.drawing-tools .drawing-swatch { position: relative; display: grid; place-items: center; min-width: 40px; width: 40px; min-height: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; }
+.drawing-swatch::before { content: ""; width: 22px; height: 22px; border: 2px solid white; border-radius: 50%; background: var(--swatch-color); box-shadow: 0 0 0 1px #0002; }
+.drawing-swatch.is-selected::before { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #34363b; }
+.drawing-tools .drawing-size { display: grid; flex: 1 1 0; min-width: 0; gap: 7px; padding: 0 3px; }
+.drawing-size-label { display: flex; align-items: center; justify-content: space-between; color: #626268; font-size: .75rem; font-weight: 600; }
+.drawing-size-label output { color: #1d1d1f; font-variant-numeric: tabular-nums; }
+.drawing-size-control { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.drawing-size-preview { display: block; flex: 0 0 18px; width: 18px; border-radius: 999px; background: var(--accent); }
+.drawing-size-control input { display: block; flex: 1 1 0; width: 100%; min-width: 0; height: 28px; margin: 0; accent-color: var(--accent); cursor: pointer; touch-action: pan-y; }
+.drawing-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.drawing-tools .drawing-icon-button { display: grid; place-items: center; width: 100%; min-width: 44px; min-height: 44px; padding: 9px; border: 1px solid #e5e7eb; border-radius: 12px; background: #f7f8fa; color: #34363b; }
+.drawing-tools .drawing-icon-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.drawing-tools .drawing-icon-button:hover:not(:disabled) { background: #edf0f4; }
+.drawing-tools .drawing-icon-button.is-selected { border-color: #f0c46a; background: #fff5d9; color: #78500b; box-shadow: inset 0 0 0 1px #f0c46a; }
+.drawing-tools .drawing-icon-button[aria-label="Save"]:not(:disabled) { border-color: var(--accent); background: var(--accent); color: #fff; }
+.drawing-tools .drawing-icon-button:disabled { opacity: .42; cursor: not-allowed; }
+.drawing-saving-dot { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: drawing-spin .7s linear infinite; }
+@keyframes drawing-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .drawing-saving-dot { animation: none; border-right-color: currentColor; } }
 .drawing-error { position: absolute; z-index: 6; top: 8px; left: 8px; right: 8px; margin: 0; }
 .drawing-dialog { width: min(760px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow: auto; border: 1px solid var(--line); border-radius: 22px; padding: 18px; background: #fff; color: #1d1d1f; box-shadow: 0 24px 80px #1d1d1f30; }
 .drawing-dialog::backdrop { background: #17172288; }
@@ -140,4 +162,4 @@ p { line-height: 1.5; }
 .drawing-original { position: relative; overflow: hidden; background: #fff; }
 .drawing-original svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .drawing-delete { margin-top: 14px; color: #a32a21 !important; }
-@media (max-width: 480px) { .drawing-tools { gap: 2px; } .drawing-tools label { font-size: 0; } .drawing-tools select { font-size: .7rem; max-width: 70px; } .drawing-tools button { font-size: .7rem; padding: 4px 5px; } }
+@media (max-width: 480px) { .drawing-tools { width: min(410px, calc(100% - 20px)); padding: 10px; gap: 7px; border-radius: 18px; } }
