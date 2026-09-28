@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { epub } from '../tests/epub.ts';
+import { localBackend } from './local-backend.mjs';
 
 // This integration check is intentionally restricted to the local test backend.
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000';
-const local = url && ['localhost', '127.0.0.1'].includes(new URL(url).hostname)
-  && ['localhost', '127.0.0.1'].includes(new URL(base).hostname);
+const { url, base, local } = localBackend('http://localhost:3000');
 const token = () => randomBytes(32).toString('hex');
 const drawing = () => ({
   id: randomUUID(), cfi: 'epubcfi(/6/2!/4/2,/1:0,/1:5)', anchor: [80, 60],

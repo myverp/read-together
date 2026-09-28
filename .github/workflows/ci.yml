@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -26,3 +30,46 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
           SUPABASE_SECRET_KEY: sb_secret_ci_placeholder
       - run: npm run typecheck
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.114.0
+      - name: Start disposable Supabase and apply base schema plus migrations
+        run: node scripts/ci-backend.mjs start
+        timeout-minutes: 12
+      - name: Build against the local backend
+        run: npm run build:ci
+      - name: Real API, database, Storage, and maintenance checks
+        run: npm run test:integration
+        timeout-minutes: 5
+      - name: Install mobile browser engines
+        run: npx playwright install --with-deps chromium webkit
+      - name: Two-reader flow and hostile EPUB in Chromium and WebKit
+        run: npm run test:browser:ci
+        timeout-minutes: 8
+      - name: Upload browser failure report and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-report
+          path: |
+            playwright-report/
+            test-results/**/*.png
+            test-results/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop only the disposable backend
+        if: always()
+        run: node scripts/ci-backend.mjs stop

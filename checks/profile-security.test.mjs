@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { epub } from '../tests/epub.ts';
+import { localBackend } from './local-backend.mjs';
 
 // Explicitly local: this test creates and removes its own accounts, EPUB, and room.
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3101';
-const local = url && ['localhost', '127.0.0.1'].includes(new URL(url).hostname)
-  && ['localhost', '127.0.0.1'].includes(new URL(base).hostname);
+const { url, base, local } = localBackend();
 const token = () => randomBytes(32).toString('hex');
 
 test('real local profiles preserve seats, deny stale devices, and serialize room colors', { skip: !local, timeout: 90000 }, async () => {

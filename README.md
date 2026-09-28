@@ -102,7 +102,7 @@ Saved strokes are anchored to a word near the drawing with an EPUB CFI, then mov
 
 ## Checks
 
-GitHub Actions runs `npm ci`, TypeScript, deterministic unit tests, and a production build on pushes to `main` and pull requests. It uses placeholder Supabase values only for build-time configuration; browser and database integration tests still require a separate development Supabase project.
+GitHub Actions runs two jobs on pushes to `main` and pull requests. The fast job checks deterministic unit tests, a production build with placeholder configuration, and TypeScript. The integration job starts a disposable local Supabase stack, applies `setup.sql` followed by every migration, builds against that backend, and tests real API/database/Storage behavior plus selected mobile browser flows. It needs no hosted Supabase or production secrets. See [the CI guide](docs/ci.md) for its exact scope and local commands.
 
 ```sh
 npm run typecheck
