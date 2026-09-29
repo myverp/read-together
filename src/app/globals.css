@@ -182,3 +182,19 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .demo-tip { display: flex; align-items: center; flex-shrink: 0; gap: 10px; padding: 8px 12px; background: #eef5ff; font-size: .8125rem; }
 .demo-tip p { margin: 0; }
 .demo-tip button { padding: 8px; flex-shrink: 0; }
+.home-intro .home-tagline { max-width: 28rem; margin: 18px 0 24px; color: var(--secondary); font-size: 1.125rem; line-height: 1.5; }
+.home-actions { display: flex; gap: 10px; }
+.home-actions > button { flex: 1; }
+button.text-button { min-height: 44px; padding: 8px 10px; border: 0; background: transparent; color: var(--accent); }
+.invitation-action { margin-left: -10px; }
+.continue-panel { display: flex; align-items: center; gap: 16px; padding: 20px 24px; }
+.continue-panel > div { min-width: 0; flex: 1; }
+.continue-panel h2 { font-size: 1rem; margin: 0 0 5px; }
+.continue-panel p { font-size: .875rem; margin: 0; overflow-wrap: anywhere; }
+.continue-panel button { width: auto; max-width: 50%; }
+.account-toggle { margin-bottom: 24px; }
+.panel .text-button { min-height: 44px; }
+.account-panel .color-choice { min-width: 44px; width: 44px !important; min-height: 44px; height: 44px; }
+.home-intro .muted { font-size: .875rem; }
+.creation-status p { margin-top: 0; }
+@media (max-width: 360px) { .home-actions { flex-direction: column; } .continue-panel { flex-direction: column; align-items: stretch; } .continue-panel button { max-width: 100%; width: 100%; } }
