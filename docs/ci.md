@@ -1,5 +1,11 @@
 # Continuous integration
 
+CI runs on every branch push and on pull requests targeting `develop` or `main`. Both jobs must pass for the current PR before merging. Pushes and PRs have separate concurrency groups; a newer commit cancels only the superseded run in its group.
+
+Work in short-lived `codex/<task>` branches from `develop`, then merge reviewed, green PRs into `develop`. Create a release PR from `develop` to `main` only when the user explicitly authorizes a release. `main` requires an up-to-date PR and successful `checks` and `integration` results from GitHub Actions, including for administrators; no second human approval is required, and force pushes/deletion are disabled.
+
+Vercel's production branch is `main`; other branches use Preview. Merging into `main` triggers production deployment through the Git integration. A working-branch push, green CI, or successful preview is not release authorization. Production migrations and deployment require explicit authorization; before a release with migrations, establish migration order, old/new code compatibility, and recovery. Preview functional tests also require an isolated backend; a Preview URL alone does not establish data isolation.
+
 The workflow in `.github/workflows/ci.yml` has two independent jobs:
 
 | Job | Coverage |
