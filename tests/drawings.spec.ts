@@ -95,8 +95,14 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await partner.getByRole('button', { name: 'Close original page' }).click();
     await partner.getByRole('button', { name: 'Next page' }).click();
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);
-    for (let i = 0; i < 35 && await partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' }).count() === 0; i++) {
+    // At 320px the wrapped toolbar and platform fonts can make this fixture's
+    // first chapter exceed 35 screens. Wait for each saved location; the target
+    // chapter and drawing absence below remain the actual assertions.
+    const partnerCfi = () => partner.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:2`) || 'null')?.cfi, code);
+    for (let i = 0; i < 80 && await partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' }).count() === 0; i++) {
+      const before = await partnerCfi();
       await partner.getByRole('button', { name: 'Next page' }).click();
+      await expect.poll(partnerCfi).not.toBe(before);
     }
     await expect(partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' })).toHaveCount(1);
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);

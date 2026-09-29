@@ -53,6 +53,10 @@ Physical iPhone/Safari and an unfamiliar person's onboarding are pending owner-a
 
 The owner postponed this manual acceptance on 2026-09-29 and asked to finish delivery now. Implementation and automated verification can be delivered to `develop`; the complete stage acceptance criteria remain open until the physical-phone and unfamiliar-person results are recorded. Neither emulated WebKit nor the HTTPS smoke test substitutes for those results. The local test services will be stopped; the prepared checkout can be reused when acceptance resumes.
 
+The first hosted F CI passed 47/48 browser cases; Linux WebKit drawings stopped at the fixture's arbitrary 35-click chapter bound. Its failure screenshot showed successful page 37 navigation near paragraph 48 of 50, still in the first chapter. The 320px wrapped toolbar and platform font/layout differences require more screens than that bound. The test now waits for every saved CFI and uses a larger bounded traversal, retaining the target-chapter and drawing absence/ownership assertions. No product code, assertion, timeout or automatic rerun was weakened to address this failure.
+
+The corrected complete drawing scenario then passed in both local Chromium and WebKit, with TypeScript passing again. A fresh hosted run on the corrected head is required before merge.
+
 ## Working PRs
 
 - D: [PR #3](https://github.com/myverp/read-together/pull/3), commits `b7efb5b` and `60530fb`, merged into `develop` as `f78c265`. Both `checks` and `integration` passed on current head in [PR CI](https://github.com/myverp/read-together/actions/runs/36576762334); the branch push CI also passed. Vercel Preview succeeded; it was not used for functional tests because data isolation was not established there.
