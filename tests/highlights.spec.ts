@@ -101,7 +101,6 @@ test("shared highlights and optional comments persist with distinct reader color
     expect((await marks(page, code)).items[2].color).toBe(first.color);
 
     await second.reload();
-    await second.getByRole("button", { name: "Join / reopen room" }).click();
     await expect(second.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
     await expect(second.locator(".shared-highlight")).toHaveCount(3);
     await second.getByRole("button", { name: "Collapse room details" }).click();

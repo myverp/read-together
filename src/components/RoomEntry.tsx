@@ -79,6 +79,6 @@ export default function RoomEntry({ code }: { code: string }) {
       {busy && <p role="status">Opening room…</p>}{error && <p className="error" role="alert">{error}</p>}
     </section>
     <button className="secondary" aria-expanded={signIn} onClick={() => setSignIn(value => !value)}>Sign in to your profile</button>
-    {signIn && <AccountPanel onOpenRoom={async next => { if (next === code) await enter(); else { requestRoomEntry(next); router.push(roomPath(next)); } }} />}
+    {signIn && <AccountPanel initiallyOpen onOpenRoom={async next => { if (next === code) await enter(); else { requestRoomEntry(next); router.push(roomPath(next)); } }} />}
   </main>;
 }

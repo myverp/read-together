@@ -57,9 +57,9 @@ jobs:
         timeout-minutes: 5
       - name: Install mobile browser engines
         run: npx playwright install --with-deps chromium webkit
-      - name: Two-reader flow and hostile EPUB in Chromium and WebKit
+      - name: Reader, onboarding, invitations and hostile EPUB in Chromium and WebKit
         run: npm run test:browser:ci
-        timeout-minutes: 8
+        timeout-minutes: 16
       - name: Upload browser failure report and screenshots
         if: failure()
         uses: actions/upload-artifact@v4

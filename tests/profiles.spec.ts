@@ -19,6 +19,7 @@ async function latestOtp(request: APIRequestContext, email: string, previousIds:
 async function signIn(page: Page, request: APIRequestContext, email: string) {
   const previous = await (await request.get(mailMessages)).json() as { messages?: MailMessage[] };
   const previousIds = (previous.messages || []).map(message => message.ID || "");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Email me a code" }).click();
   const otp = await latestOtp(request, email, previousIds);

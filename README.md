@@ -8,10 +8,13 @@ A web app for two people reading the same EPUB, each at their own pace.
 
 ## Features
 
-- Upload a DRM-free EPUB and invite a second reader with a room code.
+- Try a short original demo without a file or email, or upload a DRM-free EPUB.
+- Invite a second reader with a private link or room code; reopen a stable room address.
 - See your partner's position live and jump to their place.
 - Share highlights, comments, and drawings.
-- Read as a guest or use an email profile to resume across devices.
+- Continue your last guest room on this browser, or explicitly link rooms to an email profile for other devices.
+
+[Current onboarding screenshot](docs/images/home-390.png)
 
 ## Stack
 
