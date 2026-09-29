@@ -1,4 +1,5 @@
 "use client";
+import InviteDialog from "./InviteDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
@@ -15,6 +16,7 @@ import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
+  const [inviteOpen, setInviteOpen] = useState(false);
   const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
   const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
@@ -338,13 +340,14 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       <div><strong>You</strong><span>{me.section}</span><span className={me.done ? "done" : "muted"}>{me.done ? "Done here" : "Reading"}</span></div>
       <div><strong>Partner <small>{online ? "· online" : "· offline"}</small></strong>
         <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
-        <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Share the room code"}</span>
+        <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Invite someone to read"}</span>
       </div>
     </section>
     <p className="connection" role="status">{connection}</p>
     <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
     </div>
     <div className="reader-toolbar">
+      <button className="secondary invite-trigger" onClick={event => { event.currentTarget.focus(); setInviteOpen(true); }}>Invite</button>
       <button className="secondary partner-jump" disabled={takenOver || drawing || drawingModal || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)} aria-label="Jump to partner"><span>Jump to partner</span><span className="partner-jump-short">Partner</span></button>
       <button className="secondary details-toggle" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page">
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m4 20 4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20Z"/><path d="m14.5 6.5 3 3"/></svg>
@@ -376,6 +379,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
         <button className="secondary" onClick={clearSelection} aria-label="Dismiss selection">×</button>
       </div>}
     </div>
+    {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
