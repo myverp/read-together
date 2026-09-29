@@ -51,6 +51,8 @@ Local verification, 2026-09-29:
 
 Physical iPhone/Safari and an unfamiliar person's onboarding are pending owner-assisted acceptance. A separate checkout of `86dff75` serves local HTTPS with same-origin HTTP/WebSocket forwarding to only the disposable backend. The HTTPS smoke test verified a secure context, demo upload/private book access (2,748 ms) and two independent readers' Presence, with zero page errors. The owner received the local address and acceptance scenario. The temporary self-signed certificate and helper scripts are ignored artifacts; no production server configuration was changed. No test emails, rooms, books or notes go to the production backend.
 
+The owner postponed this manual acceptance on 2026-09-29 and asked to finish delivery now. Implementation and automated verification can be delivered to `develop`; the complete stage acceptance criteria remain open until the physical-phone and unfamiliar-person results are recorded. Neither emulated WebKit nor the HTTPS smoke test substitutes for those results. The local test services will be stopped; the prepared checkout can be reused when acceptance resumes.
+
 ## Working PRs
 
 - D: [PR #3](https://github.com/myverp/read-together/pull/3), commits `b7efb5b` and `60530fb`, merged into `develop` as `f78c265`. Both `checks` and `integration` passed on current head in [PR CI](https://github.com/myverp/read-together/actions/runs/36576762334); the branch push CI also passed. Vercel Preview succeeded; it was not used for functional tests because data isolation was not established there.
