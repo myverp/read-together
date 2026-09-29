@@ -6,7 +6,9 @@ test("a clean visitor opens the real demo within a minute, invites a partner and
   page.on("request", req => { if (req.url().endsWith("/api/rooms") && req.method() === "POST") created++; });
   const started = Date.now();
   await page.goto("/");
-  await page.getByRole("button", { name: "Try demo", exact: true }).evaluate(button => { (button as HTMLButtonElement).click(); (button as HTMLButtonElement).click(); });
+  const demoButton = page.getByRole("button", { name: "Try demo", exact: true });
+  await expect(demoButton).toBeEnabled();
+  await demoButton.evaluate(button => { (button as HTMLButtonElement).click(); (button as HTMLButtonElement).click(); });
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
   await expect(page.frameLocator(".book-view iframe").locator("body")).toContainText("Mara found the book");
   const elapsed = Date.now() - started;
