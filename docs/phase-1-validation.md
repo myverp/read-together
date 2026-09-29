@@ -57,6 +57,10 @@ The first hosted F CI passed 47/48 browser cases; Linux WebKit drawings stopped 
 
 The corrected complete drawing scenario then passed in both local Chromium and WebKit, with TypeScript passing again. A fresh hosted run on the corrected head is required before merge.
 
+That head passed the PR's `checks` and `integration`, but the concurrent branch-push run exposed another drawing test race: after **Jump to partner**, the test observed the old page's drawing before EPUB relocation completed, then expected it after the page changed. The failure screenshot showed the partner back on page 1 with the saved drawing absent there. The test now waits for the partner's stored CFI to match the owner's destination, then seeks the drawing on nearby pages and checks that it reappears. Pagination may place the anchored word on page 1 or 2, so absence on page 1 is not an invariant. Both CI triggers must pass on the new head before merge.
+
+The next focused local WebKit run exposed an earlier resize race in the drawing search helper. Its trace showed the drawing become visible between the helper's first visibility check and the first Next click; the click then moved past it. The helper now walks a bounded nearby range in both directions and waits for a distinct saved CFI after every turn. The final assertion still requires the drawing to reappear after reflow. A subsequent focused run confirmed page 1 can itself contain the drawing after reflow; the temporary page-1-absence assertion was removed. The corrected complete scenario and TypeScript then passed locally in both Chromium and WebKit. This supersedes the earlier focused results; hosted CI on the final head remains required.
+
 ## Working PRs
 
 - D: [PR #3](https://github.com/myverp/read-together/pull/3), commits `b7efb5b` and `60530fb`, merged into `develop` as `f78c265`. Both `checks` and `integration` passed on current head in [PR CI](https://github.com/myverp/read-together/actions/runs/36576762334); the branch push CI also passed. Vercel Preview succeeded; it was not used for functional tests because data isolation was not established there.
