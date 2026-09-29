@@ -4,7 +4,7 @@ The workflow in `.github/workflows/ci.yml` has two independent jobs:
 
 | Job | Coverage |
 | --- | --- |
-| `checks` | Locked dependency install, 22 deterministic unit tests, production compilation with placeholder Supabase configuration, TypeScript. |
+| `checks` | Locked dependency install, 34 deterministic unit tests, production compilation with placeholder Supabase configuration, TypeScript. |
 | `integration` | Fresh local Supabase schema, production server, profile/seat/device security, drawing ownership/retries/concurrency, atomic browser and network creation limits, storage reservations, maintenance authorization and cleanup, mobile Chromium and WebKit reader/security flows. |
 
 The integration job pins Supabase CLI **2.114.0** and uses a separate `read-together-ci` Docker project on ports **57320–57324**. Its generated configuration is under ignored `.ci-supabase/`; credentials for this local backend and a random maintenance secret are saved in ignored `.env.ci`. GitHub masks those values. No GitHub repository secrets or production services are needed, including for pull requests from forks.
@@ -19,7 +19,7 @@ The integration job pins Supabase CLI **2.114.0** and uses a separate `read-toge
 
 Network-counter races exercise the real database function directly. Unit tests separately verify the Vercel address-to-scope mapping; a local runner cannot prove Vercel's platform header behavior. Maintenance tests invoke the HTTP handler; they do not prove Vercel's daily scheduler ran.
 
-`npm run test:browser:ci` starts its own production server and runs only `tests/reading.spec.ts` and `tests/epub-security.spec.ts` in both configured projects (six browser cases). These cover upload/join, two-reader Presence, independent positions, Done state, reconnect/offline recovery, reopening, private EPUB URLs, third-reader rejection, corrupt upload rejection, and blocked hostile EPUB scripts/frames/refresh. Other browser suites remain available through `npm test`; they are outside this bounded CI selection. Mobile emulation does not establish physical-device behavior.
+`npm run test:browser:ci` starts its own production server and runs `tests/reading.spec.ts`, `tests/epub-security.spec.ts`, `tests/profiles.spec.ts` and `tests/progress.spec.ts` in both configured projects (18 browser cases). These cover upload/join, two-reader Presence, independent positions, Done state, reconnect/offline recovery, reopening, private EPUB URLs, third-reader rejection, corrupt upload rejection, and blocked hostile EPUB scripts/frames/refresh. The profile/progress selection also covers OTP/linking/takeover errors and double submission, a minute of simulated 503 retry time, unanswered requests and exit deadlines, pending recovery, offline/online, local storage errors, revision conflict choices, stale control recovery, internal EPUB links after restore, and 320/390px exit visibility. `TEST_MAIL_URL` selects the disposable mail API on port 57324. Other browser suites remain available through `npm test`; they are outside this bounded CI selection. Mobile emulation does not establish physical-device behavior.
 
 ## Run the same integration job locally
 

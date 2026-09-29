@@ -13,7 +13,7 @@ type Options = {
   onHighlightsChanged: () => void;
 };
 
-const OFFLINE = "Offline · position saved on this device";
+const OFFLINE = "Offline";
 
 /** One owner for subscription, publication, retry timers, and channel retirement. */
 export function createPresenceConnection(options: Options) {

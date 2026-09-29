@@ -37,6 +37,7 @@ if (command === 'start') {
     SUPABASE_SECRET_KEY: status.SERVICE_ROLE_KEY,
     CRON_SECRET: randomBytes(32).toString('hex'),
     CI_ISOLATED_BACKEND: '1',
+    TEST_MAIL_URL: 'http://127.0.0.1:57324',
     PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:3101',
   };
   for (const [name, value] of Object.entries(env)) {

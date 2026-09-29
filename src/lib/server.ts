@@ -72,13 +72,14 @@ export function fail(error: unknown) {
   return NextResponse.json({ error: "Room service unavailable. Check Supabase setup and try again." }, { status: 503 });
 }
 
-export async function roomResponse(row: { code: string; title: string; topic: string; book_path: string; position_one?: Position; position_two?: Position; control_version_one?: number; control_version_two?: number; highlight_state?: { colors?: number[] } }, seat: 1 | 2) {
+export async function roomResponse(row: { code: string; title: string; topic: string; book_path: string; position_one?: Position; position_two?: Position; control_version_one?: number; control_version_two?: number; position_revision_one?: number; position_revision_two?: number; highlight_state?: { colors?: number[] } }, seat: 1 | 2) {
   const { data, error } = await admin().storage.from("epubs").createSignedUrl(row.book_path, 3600);
   if (error) throw error;
   return NextResponse.json({ code: row.code, title: row.title, topic: row.topic, seat, bookUrl: data.signedUrl,
     me: seat === 1 ? row.position_one : row.position_two,
     partner: seat === 1 ? row.position_two : row.position_one,
     controlVersion: seat === 1 ? row.control_version_one : row.control_version_two,
+    revision: Number(seat === 1 ? row.position_revision_one : row.position_revision_two),
     color: row.highlight_state?.colors?.[seat - 1] ?? -1,
     partnerColor: row.highlight_state?.colors?.[seat === 1 ? 1 : 0] ?? -1,
   }, {

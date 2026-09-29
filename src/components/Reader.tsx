@@ -14,14 +14,20 @@ import { useDrawings } from "@/lib/use-drawings";
 import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
 
-export default function Reader({ room, onExit }: { room: Room; onExit: () => void }) {
+export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
   const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
   const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
-  const { me, partner, online, connection, storageError, update, notifyHighlights, takenOver, flushProgress } = useRoom(room, refreshAnnotations);
+  const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, flushProgress } = useRoom(room, refreshAnnotations);
+  const [exiting, setExiting] = useState(false);
+  const exitBusy = useRef(false);
+  const [unsafeExit, setUnsafeExit] = useState(false);
   const viewer = useRef<HTMLDivElement>(null);
   const rendition = useRef<Rendition | null>(null);
   const current = useRef(me);
+  // Saved CFI is a text anchor. Opening/reflow must not replace it with the
+  // beginning of a differently sized page; navigation chooses a new anchor.
+  const layoutAnchor = useRef<string | null>(me.cfi || null);
   const publish = useRef(update);
   const [loading, setLoading] = useState(true);
   const [turning, setTurning] = useState(false);
@@ -109,6 +115,11 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
           allowScriptedContent: true,
         });
         rendition.current = reader;
+        // epub.js handles book links through its own display(), outside navigate().
+        // Clear the reflow anchor before that queued display reports relocation.
+        reader.hooks.content.register((contents: Contents) => {
+          contents.on("linkClicked", () => { layoutAnchor.current = null; });
+        });
         const captureSelection = (cfi: string, contents: Contents) => {
           if (disposed || controlLost.current || shownDialog.current || audioOpen.current || drawingRef.current) return;
           const quote = contents.window.getSelection()?.toString().trim();
@@ -124,22 +135,28 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
           if (disposed || controlLost.current) return;
           setAtStart(location.atStart); setAtEnd(location.atEnd);
           const label = book?.navigation.get(location.start.href)?.label?.trim();
+          const cfi = layoutAnchor.current || location.start.cfi;
           const next = {
-            cfi: location.start.cfi,
+            cfi,
             section: `p. ${location.start.displayed.page} · ${label || `Section ${location.start.index + 1}`}`.slice(0, 300),
-            done: location.start.cfi === current.current.cfi ? current.current.done : false,
+            done: cfi === current.current.cfi ? current.current.done : false,
           };
           // Reflow can emit the same location repeatedly; do not resend unchanged Presence.
           if (next.cfi === current.current.cfi && next.section === current.current.section && next.done === current.current.done) return;
           current.current = next;
           publish.current(next);
         });
-        reader.on("displayError", () => { if (!disposed) setError("This section could not be displayed. Try reopening the room with a DRM-free EPUB."); });
+        reader.on("displayError", () => { if (!disposed) { layoutAnchor.current = current.current.cfi || null; setError("This section could not be displayed. Try reopening the room with a DRM-free EPUB."); } });
         await reader.display(current.current.cfi || undefined);
         if (disposed) return;
         // Explicit dimensions prevent the iframe from expanding the mobile viewport.
+        let width = element.clientWidth, height = element.clientHeight;
         resize = new ResizeObserver(() => {
-          if (!disposed && !audioOpen.current && element.clientWidth && element.clientHeight) reader.resize(element.clientWidth, element.clientHeight);
+          if (!disposed && !audioOpen.current && !navigationBusy.current && element.clientWidth && element.clientHeight && (width !== element.clientWidth || height !== element.clientHeight)) {
+            width = element.clientWidth; height = element.clientHeight;
+            layoutAnchor.current = current.current.cfi || null;
+            reader.resize(width, height);
+          }
         });
         resize.observe(element);
         // WebKit can omit selectionchange callbacks inside sandboxed EPUB frames.
@@ -231,6 +248,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     if (!reader || navigationBusy.current || controlLost.current || drawingRef.current || drawingModal) return;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
+    layoutAnchor.current = target === "prev" || target === "next" ? null : target;
     clearSelection();
     setTurning(true); setError("");
     try {
@@ -238,7 +256,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       else if (target === "next") await reader.next();
       else await reader.display(target);
       if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
-    } catch { setError("Could not turn to that position. Try reopening the room."); }
+    } catch { layoutAnchor.current = current.current.cfi || null; setError("Could not turn to that position. Try reopening the room."); }
     finally { navigationBusy.current = false; setTurning(false); }
   }
 
@@ -254,7 +272,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
     audioOpen.current = false; setAudioPage(null);
     // Restore layout after the settings keyboard or a device rotation.
     const element = viewer.current;
-    if (element) rendition.current?.resize(element.clientWidth, element.clientHeight);
+    if (element) { layoutAnchor.current = current.current.cfi || null; rendition.current?.resize(element.clientWidth, element.clientHeight); }
   }
 
   async function nextAudioPage() {
@@ -269,9 +287,14 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
   }
 
   async function exitReader() {
+    if (exitBusy.current) return;
+    exitBusy.current = true; setExiting(true);
     audioController.current?.stop();
-    await flushProgress();
-    onExit();
+    try {
+      const result = await flushProgress();
+      if (!result.safe) { setUnsafeExit(true); return; }
+      onExit(result.pending ? "Your position is saved on this device. Reopen this room to finish syncing." : undefined);
+    } finally { exitBusy.current = false; setExiting(false); }
   }
 
   async function changeColor(color: number) {
@@ -305,7 +328,6 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
         <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
         <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Share the room code"}</span>
       </div>
-      <button className="secondary room-exit" onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </section>
     <p className="connection" role="status">{connection}</p>
     <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
@@ -324,8 +346,16 @@ export default function Reader({ room, onExit }: { room: Room; onExit: () => voi
       <button className="secondary details-toggle" aria-expanded={detailsExpanded} aria-controls="reader-details" aria-label={detailsExpanded ? "Collapse room details" : "Expand room details"} onClick={() => setDetailsExpanded(expanded => !expanded)}>
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={detailsExpanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} /></svg>
       </button>
+      <button className="secondary details-toggle room-exit" disabled={exiting} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </div>
-    {(error || storageError || highlightError || drawingError) && <p className="error reader-error" role="alert">{error || storageError || highlightError || drawingError}</p>}
+    <div className="progress-status" role="status"><span>{storageError || "Saved on this device"}</span>{(room.controlVersion ?? 0) > 0 && <span>{syncState}</span>}
+      {(syncState === "Could not sync" || syncState === "Waiting for connection") && !takenOver && <button className="secondary" onClick={retrySync}>Retry sync</button>}
+      {syncState === "Sign in again to sync" && <span>Exit and sign in again, then reopen this room.</span>}
+      {syncState === "Choose which position to keep" && <><button onClick={keepLocal} disabled={takenOver || loading || turning}>Keep this position</button><button className="secondary" disabled={takenOver || loading || turning} onClick={() => { const position = useCloud(); if (position?.cfi) void navigate(position.cfi); }}>Use cloud position</button></>}
+      {stalePending && <><span>A local position remains from another control session.</span><button className="secondary" disabled={takenOver || loading || turning} onClick={() => { const position = restoreLocal(); if (position?.cfi) void navigate(position.cfi); }}>Restore local position</button></>}
+    </div>
+    {unsafeExit && <div className="exit-warning" role="alert"><p>Your latest position could not be saved on this device or confirmed in the cloud.</p><button onClick={() => setUnsafeExit(false)}>Stay</button><button className="secondary" onClick={() => onExit("You left without saving your latest position. It may be lost.")}>Exit without saving</button></div>}
+    {(error || highlightError || drawingError) && <p className="error reader-error" role="alert">{error || highlightError || drawingError}</p>}
     {takenOver && <div className="taken-over" role="alert"><strong>Continued on another device</strong><span>This reader is now view-only. Exit and choose Continue here to take control again.</span></div>}
     <div className="book-area"><div ref={viewer} className="book-view" aria-label="EPUB reader" />{loading && <p className="book-loading" role="status">Opening EPUB…</p>}
       {!loading && <DrawingLayer reader={rendition.current} viewer={viewer.current} drawings={drawings} seat={room.seat} hidden={drawingsHidden} active={drawing} takenOver={takenOver} onCancel={cancelDrawing} onModalChange={changeDrawingModal} onSave={async input => { await saveDrawing(input); notifyHighlights(); }} onRemove={async id => { await removeDrawing(id); notifyHighlights(); }} />}

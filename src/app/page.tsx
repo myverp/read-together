@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api, readerToken, supabase } from "@/lib/client";
 import { MAX_EPUB_BYTES, type Room } from "@/lib/types";
@@ -15,6 +15,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [takeoverCode, setTakeoverCode] = useState("");
+  const takeoverBusy = useRef(false);
+  const [exitWarning, setExitWarning] = useState("");
   useEffect(() => {
     try {
       readerToken();
@@ -67,7 +69,15 @@ export default function Home() {
     finally { setBusy(""); }
   }
 
-  if (room) return <Reader room={room} onExit={() => setRoom(null)} />;
+  async function continueHere() {
+    if (takeoverBusy.current || busy) return;
+    takeoverBusy.current = true; setBusy("Continuing here…"); setError("");
+    try { await enter(takeoverCode, true); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not continue here. Try again."); }
+    finally { takeoverBusy.current = false; setBusy(""); }
+  }
+
+  if (room) return <Reader key={`${room.code}:${room.seat}:${room.controlVersion}`} room={room} onExit={warning => { setExitWarning(warning || ""); setRoom(null); }} />;
   return <main className="home">
     <header><h1>Read together</h1></header>
     <AccountPanel onOpenRoom={async roomCode => { setError(""); setBusy("Opening room…"); try { await enter(roomCode); } catch (e) { setError(e instanceof Error ? e.message : "Could not open room."); } finally { setBusy(""); } }} />
@@ -82,7 +92,8 @@ export default function Home() {
       <input id="code" className="code-input" placeholder="A1B2C3D4E5F6" value={code} maxLength={12} autoCapitalize="characters" autoCorrect="off" spellCheck={false} disabled={!ready || !!busy} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-F0-9]/g, ""))} />
       <button disabled={code.length !== 12 || !!busy}>Join / reopen room</button>
     </form>
-    {takeoverCode && <section className="takeover-card" role="alert"><p>This profile is reading this room elsewhere.</p><button onClick={() => void enter(takeoverCode, true)}>Continue here</button></section>}
+    {takeoverCode && <section className="takeover-card" role="alert"><p>This profile is reading this room elsewhere.</p><button disabled={!!busy} onClick={() => void continueHere()}>Continue here</button></section>}
+    {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {busy && <p role="status">{busy}</p>}{error && <p className="error" role="alert">{error}</p>}
   </main>;
 }

@@ -17,19 +17,33 @@ export function readerToken() {
   return token;
 }
 
-export async function api<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
-  const headers = await apiHeaders();
+export class ApiError extends Error {
+  status?: number;
+  details?: { code?: string; takenOver?: boolean; takeoverRequired?: boolean; errorId?: string };
+  retryAfterMs?: number;
+}
+export async function api<T>(path: string, body?: unknown, method = "POST", options: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
+  const signal = AbortSignal.any([AbortSignal.timeout(options.timeoutMs ?? 30000), ...(options.signal ? [options.signal] : [])]);
+  // Header/session resolution is also part of the request's deadline.
+  const headers = await Promise.race([apiHeaders(), new Promise<never>((_, reject) => {
+    if (signal.aborted) reject(signal.reason);
+    else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  })]);
   const response = await fetch(path, {
     method, headers,
     body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(30000),
+    signal,
   });
-  const result = await response.json();
+  let result;
+  try { result = await response.json(); } catch { result = null; }
   if (!response.ok) {
-    const error = new Error(result.error || "Request failed. Please try again.") as Error & { status?: number; details?: unknown };
+    const error = new ApiError(typeof result?.error === "string" ? result.error : `Request failed (${response.status}). Please try again.`);
     error.status = response.status; error.details = result;
+    const retryAfter = response.headers.get("Retry-After");
+    if (retryAfter) error.retryAfterMs = /^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) * 1000 : Math.max(0, Date.parse(retryAfter) - Date.now()) || undefined;
     throw error;
   }
+  if (result === null) throw new ApiError("The service returned an unreadable response. Please try again.");
   return result;
 }
 

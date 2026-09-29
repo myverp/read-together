@@ -70,6 +70,8 @@ test('real local profiles preserve seats, deny stale devices, and serialize room
     assert.equal((await request(otherDevice, roomPath, 'POST')).body.takeoverRequired, true);
     const takeover = await request(otherDevice, roomPath, 'POST', { takeover: true });
     assert.equal(takeover.status, 200); assert.equal(takeover.body.seat, 1);
+    const repeatedTakeover = await request(otherDevice, roomPath, 'POST', { takeover: true });
+    assert.equal(repeatedTakeover.status, 200); assert.equal(repeatedTakeover.body.controlVersion, takeover.body.controlVersion, 'lost takeover response retries on same device do not transfer control again');
     assert.deepEqual(takeover.body.me, position);
     assert.equal((await request(first, `${roomPath}/state`)).body.active, false);
     const stale = await request(first, `${roomPath}/state`, 'PATCH', { position: { ...position, done: false }, controlVersion: firstRoom.body.controlVersion });
@@ -79,6 +81,25 @@ test('real local profiles preserve seats, deny stale devices, and serialize room
     const currentPosition = { ...position, section: 'New device position', done: false };
     assert.equal((await request(otherDevice, `${roomPath}/state`, 'PATCH', { position: currentPosition, controlVersion: takeover.body.controlVersion })).status, 200);
     assert.deepEqual((await request(otherDevice, `${roomPath}/state`)).body.me, currentPosition);
+
+    const beforeRevision = (await request(otherDevice, `${roomPath}/state`)).body.revision;
+    const newerPosition = { ...currentPosition, section: 'CAS saved position' };
+    const casBody = { position: newerPosition, controlVersion: takeover.body.controlVersion, revision: beforeRevision };
+    const casSaved = await request(otherDevice, `${roomPath}/state`, 'PATCH', casBody);
+    assert.equal(casSaved.status, 200); assert.equal(casSaved.body.revision, beforeRevision + 1);
+    const lostResponseRetry = await request(otherDevice, `${roomPath}/state`, 'PATCH', casBody);
+    assert.equal(lostResponseRetry.status, 409); assert.equal(lostResponseRetry.body.code, 'revision_conflict');
+    assert.deepEqual((await request(otherDevice, `${roomPath}/state`)).body.me, newerPosition, 'client can reconcile an already accepted write after losing its response');
+    const delayed = await request(otherDevice, `${roomPath}/state`, 'PATCH', { ...casBody, position: currentPosition });
+    assert.equal(delayed.status, 409); assert.equal(delayed.body.code, 'revision_conflict');
+    const concurrentProgress = await Promise.all([1,2].map(n => request(otherDevice, `${roomPath}/state`, 'PATCH', { ...casBody, revision: beforeRevision + 1, position: { ...newerPosition, section: `Concurrent ${n}` } })));
+    assert.deepEqual(concurrentProgress.map(r => r.status).sort(), [200,409]);
+    const legacy = await request(otherDevice, `${roomPath}/state`, 'PATCH', { position: currentPosition, controlVersion: takeover.body.controlVersion });
+    assert.equal(legacy.status, 200); assert.equal(legacy.body.legacyClient, true); assert.equal(legacy.body.revision, beforeRevision + 3, 'legacy clients remain writable and advance revision atomically');
+    const staleWithRevision = await request(first, `${roomPath}/state`, 'PATCH', { ...casBody, revision: beforeRevision });
+    assert.equal(staleWithRevision.status, 409); assert.equal(staleWithRevision.body.code, 'control_changed', 'control loss takes precedence over revision conflict');
+    const directProgress = await publicClient().rpc('save_reading_progress', { p_code: roomCode, p_seat: 1, p_user: null, p_guest_hash: '', p_control_hash: '', p_control_version: null, p_revision: null, p_position: currentPosition });
+    assert.ok(directProgress.error, 'browser roles cannot invoke the privileged identity-checked progress operation');
 
     const color = [0,1,2,3,4,5,6,7,8,9].find(value => value !== firstRoom.body.color && value !== partner.body.color);
     const raced = await Promise.all([otherDevice, second].map(who => request(who, `${roomPath}/color`, 'PATCH', { color })));

@@ -8,6 +8,7 @@ export type Room = {
   me?: Position;
   partner?: Position;
   controlVersion?: number;
+  revision?: number;
   profile?: Profile;
   color?: number;
   partnerColor?: number;

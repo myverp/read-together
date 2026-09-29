@@ -51,8 +51,8 @@ export default function AccountPanel({ onOpenRoom }: { onOpenRoom: (code: string
         return { code: room.code, position };
       });
       const result = await api<{ linked: string[]; skipped: { code: string; reason: string }[] }>("/api/profile/link", { rooms: entries });
-      setMessage(`${result.linked.length} room${result.linked.length === 1 ? "" : "s"} linked${result.skipped.length ? `; ${result.skipped.length} skipped safely` : ""}.`);
       await refresh();
+      setMessage(`${result.linked.length} room${result.linked.length === 1 ? "" : "s"} linked${result.skipped.length ? `; ${result.skipped.length} skipped safely` : ""}.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not link rooms."); }
     finally { setBusy(""); }
   }

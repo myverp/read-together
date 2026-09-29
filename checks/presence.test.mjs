@@ -146,7 +146,7 @@ test("offline cancels retries and repeated foreground/online signals cause just 
   f.setOnline(false); f.session.offline(); f.session.publish();
   await f.tick(60000);
   assert.equal(f.channels.length, 1);
-  assert.equal(f.statuses.at(-1), "Offline · position saved on this device");
+  assert.equal(f.statuses.at(-1), "Offline");
   f.setOnline(true); f.session.reconnect(); f.session.reconnect();
   await f.tick(2000);
   assert.equal(f.channels.length, 2);

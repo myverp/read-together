@@ -38,7 +38,7 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
     await expect(second.getByText("· online", { exact: true })).toBeVisible();
     const expandedHeight = await second.locator(".book-view").evaluate(el => el.clientHeight);
     await second.getByRole("button", { name: "Collapse room details" }).click();
-    await expect(second.getByRole("button", { name: "Exit", exact: true })).toBeHidden();
+    await expect(second.getByRole("button", { name: "Exit", exact: true })).toBeVisible();
     await expect(second.getByRole("region", { name: "Reader positions" })).toBeHidden();
     await expect(second.getByRole("button", { name: "Jump to partner" })).toBeEnabled();
     await expect.poll(() => second.locator(".book-view").evaluate(el => el.clientHeight)).toBeGreaterThan(expandedHeight + 60);
@@ -62,7 +62,7 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
     await second.getByRole("button", { name: "Join / reopen room" }).click();
     await expect(second.getByRole("button", { name: "Keep reading" })).toBeEnabled();
     await secondContext.setOffline(true);
-    await expect(second.getByText("Offline · position saved on this device")).toBeVisible();
+    await expect(second.getByText("Offline", { exact: true })).toBeVisible();
     await second.getByRole("button", { name: "Next page" }).click();
     await expect.poll(async () => (await position(second, code, 2))?.done).toBe(false);
     await secondContext.setOffline(false);
