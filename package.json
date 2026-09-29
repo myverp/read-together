@@ -12,7 +12,7 @@
     "test:presence": "node --test checks/presence.test.mjs",
     "test:integration": "node scripts/with-ci-env.mjs scripts/run-integration.mjs",
     "build:ci": "node scripts/with-ci-env.mjs node_modules/next/dist/bin/next build",
-    "test:browser:ci": "node scripts/with-ci-env.mjs node_modules/@playwright/test/cli.js test tests/reading.spec.ts tests/epub-security.spec.ts tests/profiles.spec.ts tests/progress.spec.ts tests/invitations.spec.ts"
+    "test:browser:ci": "node scripts/with-ci-env.mjs node_modules/@playwright/test/cli.js test tests/reading.spec.ts tests/epub-security.spec.ts tests/profiles.spec.ts tests/progress.spec.ts tests/invitations.spec.ts tests/demo.spec.ts"
   },
   "dependencies": {
     "@sentry/node": "11.1.0",
