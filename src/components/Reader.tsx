@@ -245,19 +245,31 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
 
   async function navigate(target: "prev" | "next" | string, continuing = false) {
     const reader = rendition.current;
-    if (!reader || navigationBusy.current || controlLost.current || drawingRef.current || drawingModal) return;
+    if (!reader || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal) return;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
     layoutAnchor.current = target === "prev" || target === "next" ? null : target;
     clearSelection();
     setTurning(true); setError("");
+    // next()/prev()/display() resolve before epub.js reports the text position
+    // on an animation frame. Keep controls busy until that position is saved.
+    let relocated!: () => void;
+    const location = new Promise<void>(resolve => { relocated = resolve; });
+    reader.on("relocated", relocated);
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      if (target === "prev") await reader.prev();
-      else if (target === "next") await reader.next();
-      else await reader.display(target);
+      await Promise.race([
+        (async () => {
+          if (target === "prev") await reader.prev();
+          else if (target === "next") await reader.next();
+          else await reader.display(target);
+          await location;
+        })(),
+        new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Page turn timed out")), 5000); }),
+      ]);
       if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
     } catch { layoutAnchor.current = current.current.cfi || null; setError("Could not turn to that position. Try reopening the room."); }
-    finally { navigationBusy.current = false; setTurning(false); }
+    finally { clearTimeout(deadline); reader.off("relocated", relocated); navigationBusy.current = false; setTurning(false); }
   }
 
   function openAudio() {
@@ -287,7 +299,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   }
 
   async function exitReader() {
-    if (exitBusy.current) return;
+    if (exitBusy.current || navigationBusy.current) return;
     exitBusy.current = true; setExiting(true);
     audioController.current?.stop();
     try {
@@ -346,7 +358,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       <button className="secondary details-toggle" aria-expanded={detailsExpanded} aria-controls="reader-details" aria-label={detailsExpanded ? "Collapse room details" : "Expand room details"} onClick={() => setDetailsExpanded(expanded => !expanded)}>
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={detailsExpanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} /></svg>
       </button>
-      <button className="secondary details-toggle room-exit" disabled={exiting} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
+      <button className="secondary details-toggle room-exit" disabled={exiting || turning} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </div>
     <div className="progress-status" role="status"><span>{storageError || "Saved on this device"}</span>{(room.controlVersion ?? 0) > 0 && <span>{syncState}</span>}
       {(syncState === "Could not sync" || syncState === "Waiting for connection") && !takenOver && <button className="secondary" onClick={retrySync}>Retry sync</button>}
@@ -371,7 +383,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onNextPage={nextAudioPage} onController={setAudioController} onClose={closeAudio} />}
     <footer className="reader-controls">
       <button className="secondary" disabled={takenOver || drawing || drawingModal || loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
-      <button aria-pressed={me.done} disabled={takenOver || drawing || drawingModal || loading || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
+      <button aria-pressed={me.done} disabled={takenOver || drawing || drawingModal || loading || turning || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
       <button className="secondary" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page">Next →</button>
     </footer>
   </main>;

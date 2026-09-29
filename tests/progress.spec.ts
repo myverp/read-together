@@ -35,6 +35,30 @@ async function profileRoom(page: Page, request: APIRequestContext, internalLinks
   return { code: details.code, open, headers, room: await opened.json(), cleanup: async () => { await admin.from("reading_rooms").delete().eq("code", details.code); await admin.storage.from("epubs").remove([details.path]); await admin.auth.admin.deleteUser(created.data.user!.id); } };
 }
 
+test("exit waits for the page-turn location before saving", async ({ page, request }) => {
+  const room = await profileRoom(page, request);
+  try {
+    const before = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
+    // epub.js reports relocation on a later animation frame, after next() resolves.
+    // Make that gap deterministic instead of depending on CI machine speed.
+    await page.evaluate(() => {
+      const frame = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = callback => frame(time => { setTimeout(() => callback(time), 500); });
+    });
+    await page.getByRole("button", { name: "Next page" }).click();
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Read together", exact: true })).toBeVisible();
+    const saved = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
+    expect(saved.me.cfi).not.toBe(before.me.cfi);
+    expect(saved.me.section).toMatch(/^p\. 2 /);
+    await room.open();
+    await expect(page.getByText(/^p\. 2 /).first()).toBeVisible();
+    const reopened = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
+    expect(reopened.me.cfi).toBe(saved.me.cfi);
+    await page.getByRole("button", { name: "Exit", exact: true }).click();
+  } finally { await room.cleanup(); }
+});
+
 test("internal book links replace a restored text anchor and persist their destination", async ({ page, request }) => {
   const room = await profileRoom(page, request, true);
   try {
@@ -118,12 +142,23 @@ test("unanswered writes cannot hold exit; offline progress recovers and storage 
 test("different cloud progress needs explicit choice; 320px exit survives collapsed details", async ({ page, request }, testInfo) => {
   const room = await profileRoom(page, request);
   try {
-    const state = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
-    const changed = await request.patch(`/api/rooms/${room.code}/state`, { headers: room.headers, data: { position: { ...state.me, section: "Another tab's position" }, controlVersion: room.room.controlVersion, revision: state.revision } }); expect(changed.ok()).toBeTruthy();
+    // Removing the conflict panel can reflow the EPUB and save a new page label.
+    // This simulated second tab must read the current revision before its write,
+    // and rebase only an actual revision conflict (never another failure).
+    const saveOtherTabPosition = async (section: string) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const state = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
+        const response = await request.patch(`/api/rooms/${room.code}/state`, { headers: room.headers, data: { position: { ...state.me, section }, controlVersion: room.room.controlVersion, revision: state.revision } });
+        if (response.ok()) return state;
+        expect(response.status()).toBe(409);
+        expect((await response.json()).code).toBe("revision_conflict");
+      }
+      throw new Error("The second tab could not save its position after three revision conflicts.");
+    };
+    await saveOtherTabPosition("Another tab's position");
     await page.getByRole("button", { name: "Next page" }).click(); await expect(page.getByText("Choose which position to keep", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Keep this position" }).click(); await expect(page.getByText("Synced", { exact: true })).toBeVisible();
-    const kept = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
-    expect((await request.patch(`/api/rooms/${room.code}/state`, { headers: room.headers, data: { position: { ...kept.me, section: "Cloud choice" }, controlVersion: room.room.controlVersion, revision: kept.revision } })).ok()).toBeTruthy();
+    const kept = await saveOtherTabPosition("Cloud choice");
     await page.getByRole("button", { name: "Next page" }).click();
     await expect(page.getByText("Choose which position to keep", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Use cloud position" }).click();
