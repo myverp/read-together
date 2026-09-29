@@ -73,3 +73,20 @@ test("invitation form rejects foreign links and room errors remain retryable", a
   expect(attempts).toBe(2);
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeHidden();
 });
+
+test("refresh replaces a rejected signed book URL through fresh admission", async ({ page }) => {
+  await page.goto("/");
+  let replies = 0;
+  await page.route(/\/api\/rooms\/[A-F0-9]{12}$/, async route => {
+    const response = await route.fetch(); const room = await response.json(); replies++;
+    if (replies === 1) { const url = new URL(room.bookUrl); url.searchParams.set("token", "expired"); room.bookUrl = url.href; }
+    await route.fulfill({ response, json: room });
+  });
+  await page.getByLabel("Choose an EPUB").setInputFiles({ name: "URL refresh.epub", mimeType: "application/epub+zip", buffer: await epub() });
+  await page.getByRole("button", { name: "Upload & create room" }).click();
+  await expect(page.getByText("Could not download the EPUB. Exit and reopen the room to retry.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeEnabled();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+  expect(replies).toBe(2);
+});

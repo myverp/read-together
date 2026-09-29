@@ -76,9 +76,8 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await findDrawing(partner);
     expect(await partner.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await partner.screenshot({ path: testInfo.outputPath('drawing-320.png') });
-    await partner.reload();
     const loadedDrawings = partner.waitForResponse(response => response.url().endsWith(`/api/rooms/${code}/drawings`) && response.request().method() === 'GET');
-    await partner.getByRole('button', { name: 'Join / reopen room' }).click();
+    await partner.reload();
     await loadedDrawings;
     await expect(partner.getByRole('button', { name: 'Draw on page' })).toBeEnabled();
     await partner.getByRole('button', { name: 'Jump to partner' }).click();
