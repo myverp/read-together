@@ -59,7 +59,6 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
     await second.getByRole("button", { name: "Done here", exact: true }).click();
     await expect.poll(async () => (await position(page, code, 1, true))?.done).toBe(true);
     await second.reload();
-    await second.getByRole("button", { name: "Join / reopen room" }).click();
     await expect(second.getByRole("button", { name: "Keep reading" })).toBeEnabled();
     await secondContext.setOffline(true);
     await expect(second.getByText("Offline", { exact: true })).toBeVisible();

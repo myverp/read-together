@@ -1,41 +1,31 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, readerToken, supabase } from "@/lib/client";
-import { MAX_EPUB_BYTES, type Room } from "@/lib/types";
+import { MAX_EPUB_BYTES } from "@/lib/types";
 import AccountPanel from "@/components/AccountPanel";
-import { rememberRoom } from "@/lib/room-history";
-const Reader = dynamic(() => import("@/components/Reader"), { ssr: false, loading: () => <p>Opening reader…</p> });
+import { invitationCode, requestRoomEntry, roomPath, takeExitWarning } from "@/lib/room-invitation";
 
 export default function Home() {
-  const [room, setRoom] = useState<Room | null>(null);
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
-  const [takeoverCode, setTakeoverCode] = useState("");
-  const takeoverBusy = useRef(false);
   const [exitWarning, setExitWarning] = useState("");
   useEffect(() => {
     try {
       readerToken();
       setCode(localStorage.getItem("read-together:room") || "");
       setReady(true);
+      setExitWarning(takeExitWarning());
     } catch { setError("Enable browser storage to remember your reader seat."); }
   }, []);
 
-  async function enter(roomCode: string, takeover = false) {
-    let next: Room;
-    try { next = await api<Room>(`/api/rooms/${roomCode}`, takeover ? { takeover: true } : undefined); }
-    catch (error) {
-      const details = (error as Error & { details?: { takeoverRequired?: boolean } }).details;
-      if (details?.takeoverRequired) { setTakeoverCode(roomCode); throw new Error("This profile is open on another device. Choose Continue here to take control."); }
-      throw error;
-    }
-    rememberRoom(localStorage, next); setTakeoverCode("");
-    setCode(roomCode);
-    setRoom(next);
+  async function enter(roomCode: string) {
+    requestRoomEntry(roomCode);
+    router.push(roomPath(roomCode));
   }
 
   async function create() {
@@ -63,21 +53,11 @@ export default function Home() {
   }
 
   async function join() {
-    setError(""); setBusy("Joining room…");
-    try { await enter(code); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not join room."); }
-    finally { setBusy(""); }
+    const normalized = invitationCode(code, location.origin);
+    if (!normalized) { setError("Enter a 12-character room code or a valid invitation link from this site."); return; }
+    setError(""); await enter(normalized);
   }
 
-  async function continueHere() {
-    if (takeoverBusy.current || busy) return;
-    takeoverBusy.current = true; setBusy("Continuing here…"); setError("");
-    try { await enter(takeoverCode, true); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not continue here. Try again."); }
-    finally { takeoverBusy.current = false; setBusy(""); }
-  }
-
-  if (room) return <Reader key={`${room.code}:${room.seat}:${room.controlVersion}`} room={room} onExit={warning => { setExitWarning(warning || ""); setRoom(null); }} />;
   return <main className="home">
     <header><h1>Read together</h1></header>
     <AccountPanel onOpenRoom={async roomCode => { setError(""); setBusy("Opening room…"); try { await enter(roomCode); } catch (e) { setError(e instanceof Error ? e.message : "Could not open room."); } finally { setBusy(""); } }} />
@@ -89,10 +69,9 @@ export default function Home() {
     </section>
     <form className="panel" onSubmit={e => { e.preventDefault(); void join(); }}><h2>Join a room</h2>
       <label htmlFor="code">Room code</label>
-      <input id="code" className="code-input" placeholder="A1B2C3D4E5F6" value={code} maxLength={12} autoCapitalize="characters" autoCorrect="off" spellCheck={false} disabled={!ready || !!busy} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-F0-9]/g, ""))} />
-      <button disabled={code.length !== 12 || !!busy}>Join / reopen room</button>
+      <input id="code" className="code-input" placeholder="A1B2C3D4E5F6" value={code} maxLength={2048} autoCapitalize="characters" autoCorrect="off" spellCheck={false} disabled={!ready || !!busy} onChange={e => setCode(e.target.value)} />
+      <button disabled={!code.trim() || !!busy}>Join / reopen room</button>
     </form>
-    {takeoverCode && <section className="takeover-card" role="alert"><p>This profile is reading this room elsewhere.</p><button disabled={!!busy} onClick={() => void continueHere()}>Continue here</button></section>}
     {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {busy && <p role="status">{busy}</p>}{error && <p className="error" role="alert">{error}</p>}
   </main>;
