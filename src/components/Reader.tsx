@@ -17,6 +17,8 @@ import { attachReaderSwipes } from "@/lib/reader-swipes";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [demoTip, setDemoTip] = useState(false);
+  useEffect(() => { try { setDemoTip(localStorage.getItem("read-together:demo") === room.code); } catch { /* Optional hint. */ } }, [room.code]);
   const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
   const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
@@ -363,6 +365,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       </button>
       <button className="secondary details-toggle room-exit" disabled={exiting || turning} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
     </div>
+    {demoTip && <div className="demo-tip"><p>Turn a page, select a phrase to highlight, then Invite someone to read with you.</p><button className="secondary" aria-label="Dismiss demo tips" onClick={() => setDemoTip(false)}>Got it</button></div>}
     <div className="progress-status" role="status"><span>{storageError || "Saved on this device"}</span>{(room.controlVersion ?? 0) > 0 && <span>{syncState}</span>}
       {(syncState === "Could not sync" || syncState === "Waiting for connection") && !takenOver && <button className="secondary" onClick={retrySync}>Retry sync</button>}
       {syncState === "Sign in again to sync" && <span>Exit and sign in again, then reopen this room.</span>}
