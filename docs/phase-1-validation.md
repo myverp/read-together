@@ -33,6 +33,25 @@ Local verification, 2026-09-29:
 
 An unknown outcome of the initial room-creation POST is still outside a “never duplicates” guarantee: no server idempotency key was introduced. The current reservation is retryable only after its code was received. No schema migration is needed.
 
+## F — simple start and final regression coverage
+
+The first screen offers Try demo, Open your EPUB and Have an invitation. Validated legacy history supplies a compact Continue reading action; optional titles stay local. Email is behind Sign in, while authenticated profiles keep their existing rooms, customization and explicit linking. Forms submit with Enter and show errors next to the relevant action. Local history now serializes only code, seat and optional title, rather than leaking extra fields from a full Room object.
+
+The product has a favicon, apple icon, generic social preview, accessible loading status and clear error/404 screens. The room route continues to have generic private metadata. The existing palette is retained. The README includes a new inspected 390px homepage screenshot and updated behavior; CI selects all 48 relevant browser cases, including highlights, drawings and audio.
+
+Local verification, 2026-09-29:
+
+- All 37 unit tests, build and TypeScript passed. All 14 focused Chromium/WebKit drawing, highlight, invitation and home cases passed together.
+- The final full browser selection passed all 48 cases in one complete run (13.3 minutes on Windows while the separate phone checkout was being built). The expanded CI browser step has a 16-minute bound; the whole integration job retains its 30-minute limit. Clean-browser demo readiness in this run was 2,673 ms Chromium and 5,497 ms WebKit on local loopback.
+- All eight real isolated API/database/Storage/maintenance cases passed after the full browser run. The final unit suite and TypeScript were rerun successfully.
+- The full browser run initially exposed obsolete test steps that clicked Join after refresh. Since a known room now reopens through admission on its route, those clicks were removed; persistence assertions were retained. The drawing response listener now starts before refresh.
+- New coverage replaces a deliberately rejected signed book URL on refresh through fresh admission. Home checks cover keyboard submission, hidden optional email, corrupt and legacy history, reduced motion, 320/390/1280px layouts and 200% text reflow at a 640px CSS viewport. Native browser zoom is a separate manual check; text reflow is not reported as native 200% zoom.
+- The 390px home and 320px invitation screenshots were visually inspected; no clipping or horizontal overflow was found. No browser errors were reported during those inspections.
+- Native Chrome for Testing Page zoom was set to 200% in browser settings. The resulting CSS viewport was 631px with devicePixelRatio 2; no horizontal overflow occurred. The full homepage screenshot was inspected, and Tab focused Try demo with a visible solid outline.
+
+Physical iPhone/Safari and an unfamiliar person's onboarding are pending owner-assisted acceptance. A separate checkout of `86dff75` serves local HTTPS with same-origin HTTP/WebSocket forwarding to only the disposable backend. The HTTPS smoke test verified a secure context, demo upload/private book access (2,748 ms) and two independent readers' Presence, with zero page errors. The owner received the local address and acceptance scenario. The temporary self-signed certificate and helper scripts are ignored artifacts; no production server configuration was changed. No test emails, rooms, books or notes go to the production backend.
+
 ## Working PRs
 
 - D: [PR #3](https://github.com/myverp/read-together/pull/3), commits `b7efb5b` and `60530fb`, merged into `develop` as `f78c265`. Both `checks` and `integration` passed on current head in [PR CI](https://github.com/myverp/read-together/actions/runs/36576762334); the branch push CI also passed. Vercel Preview succeeded; it was not used for functional tests because data isolation was not established there.
+- E: [PR #4](https://github.com/myverp/read-together/pull/4), commits `84c2e44` and `8d5ad94`, merged into `develop` as `f2e6326`. Both `checks` and `integration` passed on current head in [PR CI](https://github.com/myverp/read-together/actions/runs/36578168660); branch push CI passed too.

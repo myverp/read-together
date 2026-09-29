@@ -40,7 +40,11 @@ Then:
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Upload an EPUB on one browser, then enter its 12-character room code in another browser. A browser's random local token remembers its seat. The second browser downloads the same uploaded book.
+Open [localhost:3000](http://localhost:3000). Choose **Try demo** for a short original EPUB or **Open your EPUB** for a DRM-free file up to 25 MB. The reader opens at `/room/[code]`. **Invite** gives a private link and a room code; a new visitor explicitly chooses **Join room**, so loading/prefetching the invitation does not take a seat. Both readers download the same private book. A browser's random local token remembers its seat.
+
+The home page accepts the complete same-origin invitation link or a spaced 12-character code. Unknown domains, extra path segments and URL query/fragment additions are rejected. Refresh and Back/Forward recheck access and fetch a fresh book URL; Exit returns home. A guest gets a compact **Continue reading** action for this browser. Signing in stays optional behind **Sign in**; rooms are linked only with the explicit **Link browser rooms** action.
+
+The demo consumes an ordinary room/Storage reservation and supports a real partner, highlights and drawings. A saved demo offers continuation; **Start another demo** is an explicit new room. Creation blocks duplicate clicks, preserves a received reservation for upload retry and reconciles a successful upload whose response was lost. Cancelling an in-flight Storage transfer may still allow bytes to arrive, but does not admit/mark the room ready; the existing cron owns unfinished cleanup. An unknown outcome of the initial creation POST has no server idempotency guarantee.
 
 ## Android and iOS
 
@@ -48,7 +52,7 @@ Use Chrome on Android or Safari on iOS. The reader has touch-sized Previous/Next
 
 For phones, the simplest setup is a hosted Supabase project and an HTTPS deployment of this Next.js app. Configure the three environment variables on your Next.js host **before building** (`NEXT_PUBLIC_` values are embedded during the build). Run `npm run build`, then `npm start` on a Node-compatible host, or import this folder into a Next.js hosting provider.
 
-For a same-Wi-Fi local test, use the computer's LAN IP at port 3000 and allow the local server through the firewall. If using local Supabase, set `NEXT_PUBLIC_SUPABASE_URL` to that computer's LAN IP at port 45321 and restart Next.js. A phone's `localhost` refers to the phone, not the computer. This HTTP LAN setup is for development only; use HTTPS for sharing outside your network.
+For a same-Wi-Fi local test, use the computer's LAN IP at port 3000 and allow the local server through the firewall. If using local Supabase, set `NEXT_PUBLIC_SUPABASE_URL` to that computer's LAN IP at port 45321 and restart Next.js. A phone's `localhost` refers to the phone, not the computer. HTTP on a LAN address lacks secure-context APIs used by clipboard and annotation identifiers; use local HTTPS when validating the complete phone flow, and HTTPS for sharing outside your network. Stage 1 acceptance uses the separate disposable backend on port 57321, not the normal development database.
 
 Browser emulation is useful but is not a substitute for testing on actual Android/iOS devices. Device checks: select an EPUB from Files, join from the other phone, turn pages in both directions, jump to partner, toggle Done here, rotate, switch apps and return, and refresh/reopen the room.
 
