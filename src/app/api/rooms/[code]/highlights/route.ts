@@ -60,7 +60,7 @@ async function handle(request: Request, context: Context) {
       if (saved) return NextResponse.json({ revision: next.revision, items: next.items, colors: next.colors }, { headers: { "Cache-Control": "no-store" } });
     }
     throw new HttpError("Your partner is saving too. Please try again.", 409);
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "room-highlights", route: "/api/rooms/[code]/highlights" }); }
 }
 
 export const GET = handle;

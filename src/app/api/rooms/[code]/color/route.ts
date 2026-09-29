@@ -24,5 +24,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
       if (saved) return Response.json({ color, revision: next.revision, items: next.items, colors: next.colors });
     }
     throw new HttpError("Your partner is saving too. Try again.", 409);
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "room-color", route: "/api/rooms/[code]/color" }); }
 }

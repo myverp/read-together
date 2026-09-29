@@ -38,5 +38,5 @@ export async function POST(request: Request) {
       if (saved) linked.push(code); else skipped.push({ code, reason: "The seat changed while linking" });
     }
     return Response.json({ linked, skipped });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "link-profile", route: "/api/profile/link" }); }
 }

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       return { code: room.code, title: room.title, seat, createdAt: room.created_at, color: colors[seat - 1] ?? -1 };
     });
     return Response.json({ profile: response(profile, who.user?.email), rooms }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "profile", route: "/api/profile" }); }
 }
 
 export async function PATCH(request: Request) {
@@ -34,5 +34,5 @@ export async function PATCH(request: Request) {
       .eq("user_id", who.userId!).select("*").single();
     if (error) throw error;
     return Response.json({ profile: response(data, who.user?.email) });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "profile", route: "/api/profile" }); }
 }

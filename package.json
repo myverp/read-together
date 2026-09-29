@@ -8,13 +8,14 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
-    "test:unit": "node --test checks/presence.test.mjs checks/elevenlabs.test.mjs checks/drawings.test.mjs checks/device-speech.test.mjs checks/room-history.test.mjs checks/upload-guard.test.mjs checks/progress.test.mjs",
+    "test:unit": "node --test checks/presence.test.mjs checks/elevenlabs.test.mjs checks/drawings.test.mjs checks/device-speech.test.mjs checks/room-history.test.mjs checks/upload-guard.test.mjs checks/progress.test.mjs checks/error-reporting.test.mjs",
     "test:presence": "node --test checks/presence.test.mjs",
     "test:integration": "node scripts/with-ci-env.mjs scripts/run-integration.mjs",
     "build:ci": "node scripts/with-ci-env.mjs node_modules/next/dist/bin/next build",
     "test:browser:ci": "node scripts/with-ci-env.mjs node_modules/@playwright/test/cli.js test tests/reading.spec.ts tests/epub-security.spec.ts tests/profiles.spec.ts tests/progress.spec.ts"
   },
   "dependencies": {
+    "@sentry/node": "11.1.0",
     "@supabase/supabase-js": "2.116.0",
     "epubjs": "0.3.93",
     "next": "16.3.4",

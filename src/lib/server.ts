@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import type { Position } from "./types";
+import { reportServerError, type ErrorContext } from "./error-reporting";
 
 export class HttpError extends Error {
   constructor(message: string, public status = 400, public details: Record<string, unknown> = {}) { super(message); }
@@ -12,7 +13,7 @@ export class HttpError extends Error {
 export function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) throw new HttpError("Supabase is not configured. Follow README.md to set up .env.local.", 503);
+  if (!url || !key) throw new HttpError("Room service is temporarily unavailable. Please try again shortly.", 503);
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
@@ -65,11 +66,12 @@ export async function ensureProfile(who: Identity) {
   return data;
 }
 
-export function fail(error: unknown) {
-  if (error instanceof HttpError) return NextResponse.json({ error: error.message, ...error.details }, { status: error.status });
-  // Do not return database details, signed URLs, or secrets to the browser.
-  console.error("Room operation failed:", error instanceof Error ? error.message : "Storage or database error");
-  return NextResponse.json({ error: "Room service unavailable. Check Supabase setup and try again." }, { status: 503 });
+export function fail(error: unknown, context: ErrorContext = { operation: "room-operation", route: "server" }) {
+  if (error instanceof HttpError && error.status < 500) return NextResponse.json({ error: error.message, ...error.details }, { status: error.status });
+  if (error instanceof SyntaxError) return NextResponse.json({ error: "The request could not be read. Please try again." }, { status: 400 });
+  const status = error instanceof HttpError ? error.status : 503;
+  const errorId = reportServerError({ ...context, status });
+  return NextResponse.json({ error: `Room service is temporarily unavailable. Please try again shortly. Support reference: ${errorId}.`, errorId }, { status });
 }
 
 export async function roomResponse(row: { code: string; title: string; topic: string; book_path: string; position_one?: Position; position_two?: Position; control_version_one?: number; control_version_two?: number; position_revision_one?: number; position_revision_two?: number; highlight_state?: { colors?: number[] } }, seat: 1 | 2) {

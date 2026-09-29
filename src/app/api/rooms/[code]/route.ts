@@ -62,5 +62,5 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       room = ready;
     }
     return await roomResponse(room, seat);
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "enter-room", route: "/api/rooms/[code]" }); }
 }

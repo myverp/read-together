@@ -32,5 +32,5 @@ export async function POST(request: Request) {
       throw uploadError;
     }
     return NextResponse.json({ code, path, uploadToken: data.token });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "create-room", route: "/api/rooms" }); }
 }

@@ -14,7 +14,7 @@ export async function GET(request: Request, context: Context) {
     return Response.json({ active: !linked || control.hash === who.controlHash, controlVersion: control.version,
       revision: Number(seat === 1 ? room.position_revision_one : room.position_revision_two),
       me: seat === 1 ? room.position_one : room.position_two, partner: seat === 1 ? room.position_two : room.position_one }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "read-progress", route: "/api/rooms/[code]/state" }); }
 }
 
 export async function PATCH(request: Request, context: Context) {
@@ -37,5 +37,5 @@ export async function PATCH(request: Request, context: Context) {
     if (saved?.code === "access_denied") throw new HttpError("Join this room before saving progress.", 403);
     if (saved?.code === "revision_conflict") throw new HttpError("Another position was saved. Choose which position to keep.", 409, { code: "revision_conflict" });
     return Response.json({ ...saved, controlVersion: controlFor(room, seat).version, legacyClient: body.revision === undefined });
-  } catch (error) { return fail(error); }
+  } catch (error) { return fail(error, { operation: "save-progress", route: "/api/rooms/[code]/state" }); }
 }

@@ -1,8 +1,9 @@
-import { admin } from "@/lib/server";
+import { admin, fail, HttpError } from "@/lib/server";
+import { reportServerError } from "@/lib/error-reporting";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return Response.json({ error: "Maintenance is not configured." }, { status: 503 });
+  if (!secret) return fail(new HttpError("Maintenance is not configured.", 503), { operation: "maintenance-config", route: "/api/cron/room-maintenance" });
   if (request.headers.get("authorization") !== `Bearer ${secret}`)
     return Response.json({ error: "Unauthorized." }, { status: 401 });
 
@@ -29,18 +30,20 @@ export async function GET(request: Request) {
       const { error: storageError } = await db.storage.from("epubs").remove([room.book_path]);
       if (storageError) {
         failed++;
-        console.error("Pending EPUB cleanup failed", storageError.message);
-        await db.from("reading_rooms").update({ cleanup_started_at: null })
+        reportServerError({ operation: "maintenance-storage", route: "/api/cron/room-maintenance" });
+        const { error: releaseError } = await db.from("reading_rooms").update({ cleanup_started_at: null })
           .eq("code", room.code).eq("cleanup_started_at", claimedAt);
+        if (releaseError) reportServerError({ operation: "maintenance-release", route: "/api/cron/room-maintenance" });
         continue;
       }
       const { error: deleteError } = await db.from("reading_rooms").delete()
         .eq("code", room.code).eq("ready", false).eq("cleanup_started_at", claimedAt);
       if (deleteError) {
         failed++;
-        console.error("Pending room cleanup failed", deleteError.message);
-        await db.from("reading_rooms").update({ cleanup_started_at: null })
+        reportServerError({ operation: "maintenance-delete", route: "/api/cron/room-maintenance" });
+        const { error: releaseError } = await db.from("reading_rooms").update({ cleanup_started_at: null })
           .eq("code", room.code).eq("cleanup_started_at", claimedAt);
+        if (releaseError) reportServerError({ operation: "maintenance-release", route: "/api/cron/room-maintenance" });
       } else removed++;
     }
     const { error: pruneError } = await db.from("room_creation_limits").delete()
@@ -55,7 +58,6 @@ export async function GET(request: Request) {
       console.warn("Room storage is above 80% of its creation budget", usage);
     return Response.json(report, { status: failed ? 503 : 200 });
   } catch (error) {
-    console.error("Room maintenance failed", error instanceof Error ? error.message : "Unknown error");
-    return Response.json({ error: "Room maintenance failed." }, { status: 503 });
+    return fail(error, { operation: "maintenance", route: "/api/cron/room-maintenance" });
   }
 }
