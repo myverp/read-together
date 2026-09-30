@@ -71,11 +71,11 @@ export default function AccountPanel({ onOpenRoom, initiallyOpen = false }: { on
   if (session && !profile) return <section className="panel account-panel"><p role="status">Loading your profile…</p>{message && <><p className="error" role="alert">{message}</p><button onClick={() => void refresh()}>Retry profile</button></>}</section>;
   if (!session) return <section className="panel account-panel"><h2>Read on any device</h2>
     <p className="muted">Optional. Email codes let your profile reopen linked rooms.</p>
-    <form onSubmit={event => { event.preventDefault(); if (sent ? code.length === 6 : email.includes("@")) void (sent ? verifyCode() : requestCode()); }}>
+    <form onSubmit={event => { event.preventDefault(); if (sent ? code.length === 8 : email.includes("@")) void (sent ? verifyCode() : requestCode()); }}>
     <label htmlFor="account-email">Email</label><input id="account-email" type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} disabled={!!busy || sent} />
     {!sent ? <button disabled={!email.includes("@") || !!busy}>{busy || "Email me a code"}</button> : <>
-      <label htmlFor="account-code">6-digit code</label><input id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} />
-      <button disabled={code.length !== 6 || !!busy}>{busy || "Sign in"}</button>
+      <label htmlFor="account-code">8-digit code</label><input id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} />
+      <button disabled={code.length !== 8 || !!busy}>{busy || "Sign in"}</button>
       <button type="button" className="text-button" disabled={!!busy} onClick={() => { setSent(false); setCode(""); setMessage(""); }}>Use another email</button>
     </>}</form>{message && <p className="error" role="alert">{message}</p>}
   </section>;

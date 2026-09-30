@@ -9,10 +9,10 @@ async function latestOtp(request: APIRequestContext, email: string, previousIds:
     if (!response.ok()) return "";
     const body = await response.json() as { messages?: MailMessage[] };
     const message = body.messages?.find(item => item.To?.some(to => to.Address === email) && !previousIds.includes(item.ID || ""));
-    return message?.Snippet?.match(/\b\d{6}\b/)?.[0] || "";
+    return message?.Snippet?.match(/\b\d{8}\b/)?.[0] || "";
   }, { timeout: 15000 }).not.toBe("").then(async () => {
     const body = await (await request.get(mailMessages)).json() as { messages: MailMessage[] };
-    return body.messages.find(item => item.To?.some(to => to.Address === email) && !previousIds.includes(item.ID || ""))!.Snippet!.match(/\b\d{6}\b/)![0];
+    return body.messages.find(item => item.To?.some(to => to.Address === email) && !previousIds.includes(item.ID || ""))!.Snippet!.match(/\b\d{8}\b/)![0];
   });
 }
 
@@ -23,7 +23,7 @@ async function signIn(page: Page, request: APIRequestContext, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Email me a code" }).click();
   const otp = await latestOtp(request, email, previousIds);
-  await page.getByLabel("6-digit code").fill(otp);
+  await page.getByLabel("8-digit code").fill(otp);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByText("Your profile", { exact: true })).toBeVisible();
 }
