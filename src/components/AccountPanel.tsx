@@ -61,8 +61,8 @@ export default function AccountPanel({ onOpenRoom }: { onOpenRoom: (code: string
     <p className="muted">Optional. Email codes let your profile reopen linked rooms.</p>
     <label htmlFor="account-email">Email</label><input id="account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} disabled={!!busy} />
     {!sent ? <button disabled={!email.includes("@") || !!busy} onClick={() => void requestCode()}>{busy || "Email me a code"}</button> : <>
-      <label htmlFor="account-code">6-digit code</label><input id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} />
-      <button disabled={code.length !== 6 || !!busy} onClick={() => void verifyCode()}>{busy || "Sign in"}</button>
+      <label htmlFor="account-code">8-digit code</label><input id="account-code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ""))} />
+      <button disabled={code.length !== 8 || !!busy} onClick={() => void verifyCode()}>{busy || "Sign in"}</button>
       <button className="text-button" onClick={() => setSent(false)}>Use another email</button>
     </>}{message && <p className="error" role="alert">{message}</p>}
   </section>;

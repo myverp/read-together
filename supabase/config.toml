@@ -36,7 +36,7 @@ site_url = "http://localhost:3000"
 
 [auth.email]
 enable_confirmations = true
-otp_length = 6
+otp_length = 8
 
 [auth.email.template.magic_link]
 subject = "Your Read together sign-in code"
