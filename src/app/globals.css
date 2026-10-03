@@ -67,7 +67,8 @@ p { line-height: 1.5; }
 .details-toggle { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; padding: 10px; border-radius: 50%; }
 .partner-jump { min-width: 0; white-space: nowrap; overflow: hidden; }
 .partner-jump-short { display: none; }
-@media (max-width: 390px) { .reader-toolbar { gap: 5px; } .details-toggle { width: 44px; height: 44px; flex-basis: 44px; padding: 8px; } .partner-jump { padding-inline: 5px; } .partner-jump > span:first-child { display: none; } .partner-jump-short { display: inline; } }
+@media (max-width: 600px) { .partner-jump { padding-inline: 5px; } .partner-jump > span:first-child { display: none; } .partner-jump-short { display: inline; } }
+@media (max-width: 390px) { .reader-toolbar { gap: 5px; } .details-toggle { width: 44px; height: 44px; flex-basis: 44px; padding: 8px; } }
 .reader-error { margin: 4px 12px; font-size: .8125rem; }
 .progress-status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 4px 12px; font-size: .75rem; background: #f9f9fb; }
 .progress-status button { min-height: 44px; padding: 6px 12px; font-size: .8125rem; }
