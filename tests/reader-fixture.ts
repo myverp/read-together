@@ -3,7 +3,7 @@ import { epub } from "./epub";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, randomUUID } from "node:crypto";
 
-export async function openReader(page: Page, navigation: Parameters<typeof epub>[1] = "normal") {
+export async function openReader(page: Page, navigation: Parameters<typeof epub>[1] = "normal", appearance: Parameters<typeof epub>[2] = "plain") {
   if (process.env.CI_ISOLATED_BACKEND !== "1" || new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).port !== "57321") throw new Error("Reader tests require the disposable backend.");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const admin = createClient(url, process.env.SUPABASE_SECRET_KEY!, { auth: { persistSession: false } });
@@ -14,7 +14,7 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const session = signed.data.session!;
   await page.addInitScript(({ session, token }) => { localStorage.setItem("sb-127-auth-token", JSON.stringify(session)); localStorage.setItem("read-together:token", token); }, { session, token });
   await page.goto("/");
-  await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Reader test.epub", mimeType: "application/epub+zip", buffer: await epub(false, navigation) });
+  await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Reader test.epub", mimeType: "application/epub+zip", buffer: await epub(false, navigation, appearance) });
   await page.getByRole("button", { name: "Upload & create room" }).click();
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
   const code = await page.evaluate(() => localStorage.getItem("read-together:room")!);
@@ -24,7 +24,7 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const reopen = async () => {
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(`Reader test.*${code}`) }).click();
-    await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
   };
   return { code, position, reopen, headers: { Authorization: `Bearer ${session.access_token}`, "X-Reader-Token": token } };
 }

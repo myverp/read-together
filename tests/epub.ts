@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-export async function epub(internalLinks = false, navigation: "normal" | "nested" | "empty" | "ncx" = "normal") {
+export async function epub(internalLinks = false, navigation: "normal" | "nested" | "empty" | "ncx" = "normal", appearance: "plain" | "styled" | "fixed" = "plain") {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   zip.file("META-INF/container.xml", '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
@@ -16,8 +16,16 @@ export async function epub(internalLinks = false, navigation: "normal" | "nested
     zip.file("OEBPS/book.opf", opf.replace('version="3.0"', 'version="2.0"').replace('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>', '<item id="nav" href="toc.ncx" media-type="application/x-dtbncx+xml"/>').replace('<spine>', '<spine toc="nav">'));
     zip.file("OEBPS/toc.ncx", '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head/><docTitle><text>Walk</text></docTitle><navMap><navPoint id="one" playOrder="1"><navLabel><text>The morning walk</text></navLabel><content src="one.xhtml"/><navPoint id="passage" playOrder="2"><navLabel><text>River passage</text></navLabel><content src="one.xhtml#passage"/></navPoint></navPoint><navPoint id="two" playOrder="3"><navLabel><text>Coming home</text></navLabel><content src="two.xhtml"/></navPoint></navMap></ncx>');
   }
+  if (appearance === "fixed") {
+    const opf = await zip.file("OEBPS/book.opf")!.async("string");
+    zip.file("OEBPS/book.opf", opf.replace('</metadata>', '<meta property="rendition:layout">pre-paginated</meta></metadata>'));
+  }
   for (const [path, title] of [["one", "The morning walk"], ["two", "Coming home"]]) {
     zip.file(`OEBPS/${path}.xhtml`, `<html xmlns="http://www.w3.org/1999/xhtml"><head><title>${title}</title></head><body><h1>${title}</h1>${internalLinks ? `<p><a href="${path === "one" ? "two" : "one"}.xhtml">Go to the other chapter</a></p>` : ""}${Array.from({ length: 50 }, (_, i) => `<p${i === 20 ? ' id="passage"' : ''}>Paragraph ${i + 1}. We walked along the river and watched the light settle on the water. There was time to read a little, pause, and share the same quiet story together.</p>`).join("")}</body></html>`);
+  }
+  if (appearance !== "plain") for (const path of ["one", "two"]) {
+    const section = await zip.file(`OEBPS/${path}.xhtml`)!.async("string");
+    zip.file(`OEBPS/${path}.xhtml`, section.replace('</head>', `${appearance === "fixed" ? '<meta name="viewport" content="width=600,height=800"/>' : '<style>body{background:#ffff00;color:#ffffff;font-size:40px}p{font-size:40px;color:#ffffff;background:#ffff00}h1{font-size:60px;color:#ffffff}code,pre,td{color:#ffffff;background:#000000}</style>'}</head>`).replace('</h1>', '</h1><p><em>Author emphasis</em> and <strong>strong text</strong>.</p><pre><code>Readable code</code></pre><table><tbody><tr><td>Table cell</td></tr></tbody></table><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="#ff0000"/></svg>'));
   }
   return zip.generateAsync({ type: "nodebuffer" });
 }
