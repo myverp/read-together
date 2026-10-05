@@ -20,12 +20,18 @@ test("nested safe contents persists fragment CFI through delayed relocation, exi
     const frame = requestAnimationFrame.bind(window);
     window.requestAnimationFrame = fn => frame(time => { setTimeout(() => fn(time), 400); });
   });
+  await page.route(`**/api/rooms/${room.code}/state`, async route => {
+    if (route.request().method() === "PATCH") await new Promise(resolve => setTimeout(resolve, 800));
+    await route.continue();
+  });
   await trigger.click();
   await dialog.getByRole("button", { name: /<b>River passage/ }).click();
   await expect(dialog).toBeHidden();
   const saved = await room.position(); expect(saved.cfi).toMatch(/^epubcfi\(/);
   expect(saved.cfi).toContain("/6/2!");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
+  // click() dispatches Exit; the reader still awaits its asynchronous cloud flush.
+  await expect(page.getByRole("heading", { name: "Read together", exact: true })).toBeVisible();
   const response = await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers });
   expect(response.ok()).toBeTruthy(); const state = await response.json();
   expect(state.me.cfi).toBe(saved.cfi);

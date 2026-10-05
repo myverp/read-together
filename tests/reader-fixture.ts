@@ -20,6 +20,7 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const code = await page.evaluate(() => localStorage.getItem("read-together:room")!);
   const position = () => page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`) || "null"), code);
   await expect.poll(async () => (await position())?.cfi).toMatch(/^epubcfi\(/);
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
   const reopen = async () => {
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(`Reader test.*${code}`) }).click();
