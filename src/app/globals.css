@@ -181,6 +181,24 @@ p { line-height: 1.5; }
 .contents-dialog button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .contents-dialog button[aria-current] { border: 2px solid var(--accent); }
 .chapter-current { font-size: .8em; }
+.reader[data-reading-theme] { background: var(--reading-bg); color: var(--reading-text); border-color: var(--line); }
+.reader[data-reading-theme="dark"] { color-scheme: dark; }
+.reader .reader-toolbar, .reader .reader-controls, .reader .progress-status, .reader .demo-tip, .reader .taken-over, .reader .exit-warning { background: var(--surface); color: var(--reading-text); border-color: var(--line); }
+.reader .book-area, .reader .book-view, .reader .book-loading, .reader .selection-actions { background: var(--reading-bg); color: var(--reading-text); }
+.reader dialog { background: var(--reading-bg); color: var(--reading-text); border-color: var(--line); }
+.reader dialog blockquote, .reader dialog input:not([type=radio]), .reader dialog textarea, .reader dialog select { background: var(--surface); color: var(--reading-text); border-color: var(--line); }
+.reader .error, .reader .drawing-delete { color: var(--reading-error) !important; }
+.reader .done { color: var(--accent); }
+.reader button:not(.secondary):not(.color-choice) { color: var(--reading-button-text); }
+.reader button.secondary { background: var(--reading-bg); color: var(--accent); border-color: var(--line); }
+.reader button:disabled, .reader button.secondary:disabled { background: var(--surface); color: var(--secondary); }
+.reader button.secondary:not(:disabled):hover { background: var(--surface); }
+.reader :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.settings-dialog select { display: block; width: 100%; min-height: 48px; font: inherit; padding: 8px 12px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
+.settings-dialog fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; margin: 0 0 20px; padding: 12px; }
+.reading-theme-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.reading-theme-options label { display: flex; align-items: center; flex: 1; gap: 8px; min-height: 44px; margin: 0; cursor: pointer; }
+.reading-theme-options input[type=radio] { width: 20px; min-height: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .invite-trigger { padding-inline: 10px; }
 .room-entry header h1 { margin-top: 24px; }
 a { color: var(--accent); }

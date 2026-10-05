@@ -1,6 +1,6 @@
 "use client";
 import InviteDialog from "./InviteDialog";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
 import { useRoom } from "@/lib/use-room";
@@ -16,10 +16,22 @@ import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
 import ReaderContents from "./ReaderContents";
 import { bookChapters, type Chapter } from "@/lib/reader-navigation";
+import ReadingSettingsDialog from "./ReadingSettingsDialog";
+import { loadSettings, saveSettings, READING_PALETTES, type ReadingSettings } from "@/lib/reading-settings";
+import { browserStorage } from "@/lib/local-progress";
+import { registerReadingThemes, themeName } from "@/lib/reader-themes";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [initialSettings] = useState(() => loadSettings(browserStorage()));
+  const [settings, setSettings] = useState(initialSettings.settings);
+  const settingsRef = useRef(settings);
+  const [settingsStorage, setSettingsStorage] = useState(initialSettings.available);
+  const [fixedLayout, setFixedLayout] = useState(false);
+  const reflow = useRef<() => void>(() => {});
+  const resizePending = useRef(false);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [sectionIndex, setSectionIndex] = useState<number | null>(null);
   const modalOpen = useRef(false);
@@ -68,7 +80,12 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const shownDialog = useRef(highlightDialog);
   const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
-  modalOpen.current = contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
+  modalOpen.current = contentsOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
+  reflow.current = () => {
+    if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog) { resizePending.current = true; return; }
+    resizePending.current = false;
+    void navigate(current.current.cfi, false, undefined, { resize: true });
+  };
   const swipeState = useRef({ loading, selection, highlightDialog, atStart, atEnd, drawing, drawingModal });
   swipeState.current = { loading, selection, highlightDialog, atStart, atEnd, drawing, drawingModal };
   const swipeNavigate = useRef(navigate);
@@ -76,6 +93,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   current.current = me;
   publish.current = update;
   const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
+
+  useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage]);
 
   useEffect(() => () => { audioController.current?.stop(); }, []);
   useEffect(() => {
@@ -109,6 +128,9 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
         if (disposed) return;
         openedBook.current = book;
         setChapters(bookChapters(book));
+        let fixed = book.packaging.metadata.layout === "pre-paginated";
+        book.spine.each((section: { properties: string[] }) => { if (section.properties.includes("rendition:layout-pre-paginated")) fixed = true; });
+        setFixedLayout(fixed);
         // WebKit blocks parent-installed event listeners when sandbox scripts are
         // disabled. Install CSP in the inert section document before serialization.
         book.spine.hooks.content.register((doc: Document) => {
@@ -145,8 +167,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
           setSelection(previous => previous?.cfi === cfi && previous.quote === quote ? previous : { id: crypto.randomUUID(), cfi, quote });
         };
         reader.on("selected", captureSelection);
-        reader.themes.default({ body: { "font-family": "Georgia, serif", "font-size": "18px", "line-height": "1.6" },
-          "img, svg": { "max-width": "100%", "max-height": "100%" } });
+        registerReadingThemes(reader, fixed);
+        reader.themes.select(themeName(settingsRef.current));
         reader.on("relocated", (location: Location) => {
           if (disposed || controlLost.current) return;
           const active = operation.current;
@@ -175,10 +197,9 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
         // Explicit dimensions prevent the iframe from expanding the mobile viewport.
         let width = element.clientWidth, height = element.clientHeight;
         resize = new ResizeObserver(() => {
-          if (!disposed && !audioOpen.current && !navigationBusy.current && element.clientWidth && element.clientHeight && (width !== element.clientWidth || height !== element.clientHeight)) {
+          if (!disposed && element.clientWidth && element.clientHeight && (width !== element.clientWidth || height !== element.clientHeight)) {
             width = element.clientWidth; height = element.clientHeight;
-            layoutAnchor.current = current.current.cfi || null;
-            reader.resize(width, height);
+            reflow.current();
           }
         });
         resize.observe(element);
@@ -221,7 +242,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     groups.forEach(mark => {
       try {
         reader.annotations.highlight(mark.cfi, { id: mark.id }, () => openMark(mark.cfi), "shared-highlight", {
-          fill: HIGHLIGHT_COLORS[mark.color], "fill-opacity": "0.32", "mix-blend-mode": "multiply",
+          fill: HIGHLIGHT_COLORS[mark.color], "fill-opacity": "0.32", "mix-blend-mode": settings.theme === "dark" ? "normal" : "multiply",
         });
       } catch { /* A malformed location must not prevent the rest of the book from opening. */ }
     });
@@ -241,7 +262,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       reader.off("rendered", accessibleMarks);
       if (rendition.current === reader) groups.forEach(mark => reader.annotations.remove(mark.cfi, "highlight"));
     };
-  }, [highlights, loading, room.seat]);
+  }, [highlights, loading, room.seat, settings.theme]);
 
   useEffect(() => {
     const reader = rendition.current;
@@ -266,15 +287,16 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     setSelection(null);
   }
 
-  async function navigate(target: "prev" | "next" | string, continuing = false, chapter?: Chapter) {
+  async function navigate(target: "prev" | "next" | string, continuing = false, chapter?: Chapter, layout?: { settings?: ReadingSettings; resize?: boolean }) {
     const reader = rendition.current;
     if (!reader || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal || shownDialog.current) return false;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
     const previous = { ...current.current };
+    const previousSettings = settingsRef.current;
     layoutAnchor.current = target.startsWith("epubcfi(") ? target : null;
     clearSelection();
-    setTurning(true); setError("");
+    setTurning(true); if (!layout?.resize) setError("");
     // next()/prev()/display() resolve before epub.js reports the text position
     // on an animation frame. Keep controls busy until that position is saved.
     let confirm!: (value: Location) => void;
@@ -285,6 +307,18 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     try {
       const confirmed = await Promise.race([
         (async () => {
+          // Drain already scheduled location frames before issuing this operation.
+          // Otherwise an old same-section relocation can confirm a new reflow.
+          await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+          if (operation.current !== active) throw new Error("Cancelled navigation");
+          if (layout) {
+            if (layout.settings) reader.themes.select(themeName(layout.settings));
+            // Recreate only the section view with the existing book and theme.
+            // This formats author CSS before restoring the confirmed text anchor.
+            reader.clear();
+            const element = viewer.current;
+            if (element && layout.resize) (reader as unknown as { resize: (width: number, height: number, cfi: string) => void }).resize(element.clientWidth, element.clientHeight, target);
+          }
           if (chapter?.target?.includes("#")) {
             const section = openedBook.current?.spine.get(chapter.target);
             if (!section) throw new Error("Missing section");
@@ -306,12 +340,33 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       setSectionIndex(confirmed.start.index); setAtStart(confirmed.atStart); setAtEnd(confirmed.atEnd);
       const cfi = layoutAnchor.current || confirmed.start.cfi;
       const label = chapter?.label || openedBook.current?.navigation.get(confirmed.start.href)?.label?.trim();
-      const next = { cfi, section: `p. ${confirmed.start.displayed.page} · ${label || `Section ${confirmed.start.index + 1}`}`.slice(0, 300), done: cfi === previous.cfi ? previous.done : false };
-      current.current = next; publish.current(next);
+      const next = layout ? previous : { cfi, section: `p. ${confirmed.start.displayed.page} · ${label || `Section ${confirmed.start.index + 1}`}`.slice(0, 300), done: cfi === previous.cfi ? previous.done : false };
+      current.current = next;
+      // Technical reflow keeps the text anchor and Done state, without synthetic Presence.
+      if (!layout) publish.current(next);
+      if (layout?.settings) { settingsRef.current = layout.settings; setSettings(layout.settings); setSettingsStorage(saveSettings(browserStorage(), layout.settings)); }
       if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
       return true;
-    } catch { ignoreRelocations.current = true; layoutAnchor.current = previous.cfi || null; setError("Could not open that position. Retry the section or close and reopen the room."); return false; }
-    finally { clearTimeout(deadline); if (operation.current === active) operation.current = null; navigationBusy.current = false; setTurning(false); }
+    } catch {
+      ignoreRelocations.current = true; layoutAnchor.current = previous.cfi || null;
+      if (layout) {
+        reader.themes.select(themeName(previousSettings)); reader.clear();
+        // Recover the view without accepting a late callback from the failed reflow.
+        void reader.display(previous.cfi).catch(() => {});
+      }
+      setError(layout ? "Could not apply reading settings. Your previous settings and position are kept. Try again." : "Could not open that position. Retry the section or close and reopen the room."); return false;
+    }
+    finally {
+      clearTimeout(deadline); if (operation.current === active) operation.current = null;
+      navigationBusy.current = false; setTurning(false);
+    }
+  }
+
+  function changeSettings(next: ReadingSettings) {
+    if (!rendition.current || loading || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal || shownDialog.current) return;
+    if (next.theme === settingsRef.current.theme && next.fontSize === settingsRef.current.fontSize) return;
+    setSettings(next);
+    void navigate(current.current.cfi, false, undefined, { settings: next }).then(ok => { if (!ok) setSettings(settingsRef.current); });
   }
 
   function openAudio() {
@@ -325,8 +380,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   function closeAudio() {
     audioOpen.current = false; setAudioPage(null);
     // Restore layout after the settings keyboard or a device rotation.
-    const element = viewer.current;
-    if (element) { layoutAnchor.current = current.current.cfi || null; rendition.current?.resize(element.clientWidth, element.clientHeight); }
+    reflow.current();
   }
 
   async function nextAudioPage() {
@@ -374,7 +428,10 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     finally { setStartingDrawing(false); }
   }
 
-  return <main className="reader">
+  const palette = READING_PALETTES[settings.theme];
+  return <main className="reader" data-reading-theme={settings.theme} style={{ "--reading-bg": palette.background, "--reading-text": palette.text,
+    "--surface": palette.surface, "--secondary": palette.muted, "--accent": palette.link, "--line": palette.line, "--reading-error": palette.error,
+    "--reading-button-text": settings.theme === "dark" ? palette.background : "#ffffff" } as CSSProperties}>
     <div id="reader-details" hidden={!detailsExpanded}>
     <section className="reader-status" aria-label="Reader positions">
       <div><strong>You</strong><span>{me.section}</span><span className={me.done ? "done" : "muted"}>{me.done ? "Done here" : "Reading"}</span></div>
@@ -387,7 +444,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
     </div>
     <div className="reader-toolbar">
-      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
+      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
+      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setSettingsOpen(true); }}>Reading settings</button>
       <button className="secondary invite-trigger" onClick={event => { event.currentTarget.focus(); setInviteOpen(true); }}>Invite</button>
       <button className="secondary partner-jump" disabled={takenOver || drawing || drawingModal || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)} aria-label="Jump to partner"><span>Jump to partner</span><span className="partner-jump-short">Partner</span></button>
       <button className="secondary details-toggle" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page">
@@ -424,6 +482,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
       onClose={() => setContentsOpen(false)} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) setContentsOpen(false); }); }} />}
+    {settingsOpen && <ReadingSettingsDialog settings={settings} busy={turning} fixed={fixedLayout} storageAvailable={settingsStorage} error={error}
+      onChange={changeSettings} onClose={() => setSettingsOpen(false)} />}
     {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
