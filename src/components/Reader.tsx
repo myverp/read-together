@@ -285,6 +285,13 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     try {
       const confirmed = await Promise.race([
         (async () => {
+          if (chapter?.target?.includes("#")) {
+            const section = openedBook.current?.spine.get(chapter.target);
+            if (!section) throw new Error("Missing section");
+            await section.load(openedBook.current?.request);
+            if (!section.document.getElementById(decodeURIComponent(chapter.target.split("#").slice(1).join("#")))) throw new Error("Missing passage");
+            if (operation.current !== active) throw new Error("Cancelled navigation");
+          }
           if (target === "prev") await reader.prev();
           else if (target === "next") await reader.next();
           else await reader.display(target);
