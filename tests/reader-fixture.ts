@@ -3,6 +3,17 @@ import { epub } from "./epub";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, randomUUID } from "node:crypto";
 
+export async function applyReadingSettings(page: Page, fontSize = 28, theme = "Dark") {
+  await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
+  await dialog.getByLabel("Text size").selectOption(String(fontSize));
+  await expect(dialog.getByLabel("Text size")).toBeEnabled();
+  await dialog.getByRole("radio", { name: theme, exact: true }).check();
+  await expect(dialog.getByLabel("Text size")).toBeEnabled();
+  await dialog.getByRole("button", { name: "Close reading settings" }).click();
+  await expect(page.getByRole("button", { name: "Contents", exact: true })).toBeEnabled();
+}
+
 export async function openReader(page: Page, navigation: Parameters<typeof epub>[1] = "normal", appearance: Parameters<typeof epub>[2] = "plain") {
   if (process.env.CI_ISOLATED_BACKEND !== "1" || new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).port !== "57321") throw new Error("Reader tests require the disposable backend.");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { epub } from './epub';
+import { applyReadingSettings } from './reader-fixture';
 async function pos(page: Page) { return page.evaluate(() => { const code=localStorage.getItem('read-together:room'); return JSON.parse(localStorage.getItem(`read-together:${code}:1`) || '{}').cfi; }); }
 async function swipe(page: Page, dx = -160, dy = 0, fingers = 1, hold = 0) {
   await page.evaluate(async ({dx,dy,fingers,hold}) => {
@@ -30,6 +31,13 @@ test('swipes match buttons and reject short, vertical, multitouch, long press, s
  for(const args of [[-20,0,1,0],[-70,140,1,0],[-160,0,2,0],[-160,0,1,550]]) {
   await swipe(page,...args as [number,number,number,number]); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
  }
+ for(const name of ['Contents', 'Reading settings']) {
+  await page.getByRole('button',{name,exact:true}).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await swipe(page); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button',{name,exact:true})).toBeFocused();
+ }
  await page.frameLocator('.book-view iframe').locator('p').first().evaluate(el=>{const range=el.ownerDocument.createRange();range.selectNodeContents(el);const s=el.ownerDocument.getSelection()!;s.removeAllRanges();s.addRange(range);});
  await expect(page.getByRole('button',{name:'Highlight selection',exact:true})).toBeVisible();
  await swipe(page); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
@@ -38,6 +46,9 @@ test('swipes match buttons and reject short, vertical, multitouch, long press, s
  await swipe(page); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
  await page.getByRole('button',{name:'Close highlight'}).click();
  await swipe(page); await expect.poll(()=>pos(page)).toBe(next);
+ await applyReadingSettings(page);
+ const beforeReflowSwipe = await pos(page);
+ await swipe(page); await expect.poll(()=>pos(page)).not.toBe(beforeReflowSwipe);
 });
 
 test('Chromium native touch delivery turns the iframe page once',async({page,context,browserName})=>{
@@ -65,12 +76,12 @@ test('swipes keep working across EPUB sections and after reopening',async({page}
  await page.goto('/');await expect(page.getByLabel('Choose an EPUB')).toBeEnabled();
  await page.getByLabel('Choose an EPUB').setInputFiles({name:'Chapters.epub',mimeType:'application/epub+zip',buffer:await zip.generateAsync({type:'nodebuffer'})});
  await page.getByRole('button',{name:'Upload & create room'}).click();await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
- const label=page.locator('.reader-status > div').first();
+ const label=page.getByRole('region',{name:'Reader positions'});
  for(let i=0;i<12 && !(await label.innerText()).includes('Coming home');i++){const before=await pos(page);await swipe(page);await expect.poll(()=>pos(page)).not.toBe(before);}
  await expect(label).toContainText('Coming home');const chapterStart=await pos(page);
  await swipe(page);await expect.poll(()=>pos(page)).not.toBe(chapterStart);
  await swipe(page,160);await expect.poll(()=>pos(page)).toBe(chapterStart);
  await page.getByRole('button',{name:'Exit',exact:true}).click();
- await page.getByRole('button',{name:'Join / reopen room'}).click();await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
+ await page.getByRole('button',{name:'Continue reading',exact:true}).click();await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
  await expect.poll(()=>pos(page)).toBe(chapterStart);await swipe(page);await expect.poll(()=>pos(page)).not.toBe(chapterStart);
 });

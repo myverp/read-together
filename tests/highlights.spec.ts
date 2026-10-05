@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { epub } from "./epub";
+import { applyReadingSettings } from "./reader-fixture";
 import type { HighlightSnapshot } from "../src/lib/highlights";
 
 test.use({ actionTimeout: 20000 });
@@ -32,11 +33,29 @@ async function tapMark(page: Page, id: string) {
   // Rotation replaces the EPUB view. Read overlay coordinates only after its
   // confirmed relocation, rather than tapping a rect from the outgoing view.
   await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
-  const rect = page.locator(`.shared-highlight[data-id="${id}"] rect`).first();
-  await expect(rect).toBeVisible();
-  const box = (await rect.boundingBox())!;
+  const rects = page.locator(`.shared-highlight[data-id="${id}"] rect`);
+  await expect(rects.first()).toBeAttached();
+  let point: { x: number; y: number } | null = null;
+  // Larger text can put this fixture's second paragraph on the next screen.
+  // Find a visible part of the actual saved mark before delivering the tap.
+  for (let screen = 0; screen < 4; screen++) {
+    point = await rects.evaluateAll(elements => {
+      const clip = document.querySelector('.book-view')!.getBoundingClientRect();
+      for (const element of elements) {
+        const box = element.getBoundingClientRect();
+        const left = Math.max(box.left, clip.left), right = Math.min(box.right, clip.right);
+        const top = Math.max(box.top, clip.top), bottom = Math.min(box.bottom, clip.bottom);
+        if (right - left > 2 && bottom - top > 2) return { x: (left + right) / 2, y: (top + bottom) / 2 };
+      }
+      return null;
+    });
+    if (point) break;
+    await page.getByRole("button", { name: "Next page" }).click();
+    await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
+  }
+  expect(point, "saved highlight must be visible on a nearby screen").not.toBeNull();
   // epub.js forwards real pointer events from the iframe to its SVG marks.
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await page.touchscreen.tap(point!.x, point!.y);
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
@@ -86,6 +105,8 @@ test("shared highlights and optional comments persist with distinct reader color
     await second.getByRole("button", { name: "Save highlight" }).click();
     await expect(second.getByRole("dialog").getByRole("alert")).toContainText("Temporary test outage");
     await expect(second.getByLabel("Comment (optional)")).toHaveValue(comment);
+    await expect(second.getByRole("button", { name: "Contents", exact: true })).toBeDisabled();
+    await expect(second.getByRole("button", { name: "Reading settings", exact: true })).toBeDisabled();
     await second.unroute(`**/api/rooms/${code}/highlights`);
     await second.getByRole("button", { name: "Save highlight" }).click();
     await expect(second.getByRole("dialog")).toHaveCount(0);
@@ -112,6 +133,10 @@ test("shared highlights and optional comments persist with distinct reader color
     await second.setViewportSize({ width: 390, height: 844 });
     await expect(second.frameLocator(".book-view iframe").locator("p").first()).toBeVisible();
     expect(await second.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const beforeReflow = (await marks(page, code)).items;
+    await applyReadingSettings(second);
+    expect((await marks(page, code)).items).toEqual(beforeReflow);
+    await expect(page.locator(".reader")).toHaveAttribute("data-reading-theme", "light");
     await tapMark(second, partnerMark.id);
     await expect(second.locator(".highlight-comment")).toHaveText(comment);
     await second.getByRole("button", { name: "Remove highlight" }).click();

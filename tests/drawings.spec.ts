@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { epub } from './epub';
+import { applyReadingSettings } from './reader-fixture';
 
 async function state(page: Page, code: string) {
   return page.evaluate(async code => {
@@ -57,6 +58,8 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(page.getByRole('toolbar', { name: 'Drawing tools' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Contents', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Reading settings', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel' }).click();
     expect((await state(page, code)).items).toHaveLength(0);
     await page.getByRole('button', { name: 'Draw on page' }).click();
@@ -99,13 +102,21 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);
     await partner.getByRole('button', { name: 'Show drawings' }).click();
     await expect(partner.locator('.saved-drawing-stroke').first()).toBeVisible();
+    const beforeReflow = await partnerCfi();
+    await applyReadingSettings(partner);
+    expect(await partnerCfi()).toBe(beforeReflow);
+    expect((await state(page, code)).items).toEqual(saved);
+    await expect(page.locator('.reader')).toHaveAttribute('data-reading-theme', 'light');
+    await findDrawing(partner, code);
     await partner.locator('.drawing-overlay g[role="button"]').first().focus();
     await partner.keyboard.press('Enter');
     await expect(partner.getByRole('dialog', { name: 'Original drawing page' })).toBeVisible();
     await expect(partner.getByRole('dialog').locator('text')).not.toHaveCount(0);
+    await expect(partner.locator('.drawing-original')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await partner.screenshot({ path: testInfo.outputPath('drawing-original.png') });
     await expect(partner.getByRole('button', { name: 'Delete my drawing' })).toHaveCount(0);
     await partner.getByRole('button', { name: 'Close original page' }).click();
+    await applyReadingSettings(partner, 18, 'Light');
     await partner.getByRole('button', { name: 'Next page' }).click();
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);
     // At 320px the wrapped toolbar and platform fonts can make this fixture's
