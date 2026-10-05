@@ -42,6 +42,13 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
   await trigger.click(); await expect(dialog.getByLabel("Text size")).toHaveValue("28");
   await dialog.getByRole("button", { name: "Reset", exact: true }).click(); await expect(dialog.getByLabel("Text size")).toBeEnabled();
   await expect(dialog.getByLabel("Text size")).toHaveValue("18"); await expect(dialog.getByRole("radio", { name: "Light", exact: true })).toBeChecked();
+  await dialog.getByRole("button", { name: "Close reading settings" }).click();
+  for (const width of [320,390,768,1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(trigger).toBeEnabled();
+    expect(await page.locator(".reader-toolbar button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
 
 test("personal settings cross books, stay independent of partner, and storage failure remains usable", async ({ page, browser, baseURL }, testInfo) => {

@@ -175,6 +175,7 @@ p { line-height: 1.5; }
 .invite-dialog input { font-size: .875rem; }
 .reader-toolbar { flex-wrap: wrap; }
 .reader-toolbar > button { min-height: 44px; flex-shrink: 0; }
+.reader-toolbar > button:first-child { flex: 1 0 auto; }
 .reader-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; margin: auto; }
 .contents-dialog ol { padding-left: 20px; }
 .contents-dialog li { margin: 8px 0; }
