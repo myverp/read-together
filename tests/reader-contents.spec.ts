@@ -56,7 +56,8 @@ test("timed out relocation retains confirmed progress and can retry after late c
   await page.evaluate(() => {
     const frame = requestAnimationFrame.bind(window);
     (window as unknown as { originalFrame: typeof requestAnimationFrame }).originalFrame = frame;
-    window.requestAnimationFrame = fn => frame(time => { setTimeout(() => fn(time), 6500); });
+    (window as unknown as { lateFrames: number }).lateFrames = 0;
+    window.requestAnimationFrame = fn => frame(time => { setTimeout(() => { fn(time); (window as unknown as { lateFrames: number }).lateFrames++; }, 6500); });
   });
   await page.getByRole("button", { name: "Contents", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Coming home", exact: true }).click();
@@ -64,7 +65,8 @@ test("timed out relocation retains confirmed progress and can retry after late c
   expect((await room.position()).cfi).toBe(before.cfi);
   await page.evaluate(() => { window.requestAnimationFrame = (window as unknown as { originalFrame: typeof requestAnimationFrame }).originalFrame; });
   // The late callback observes the current view; it must not publish failed progress.
-  await expect.poll(async () => (await room.position()).cfi).toBe(before.cfi);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { lateFrames: number }).lateFrames)).toBeGreaterThan(0);
+  expect((await room.position()).cfi).toBe(before.cfi);
   await page.getByRole("dialog").getByRole("button", { name: "The morning walk" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.frameLocator(".book-view iframe").getByRole("heading", { name: "The morning walk" })).toBeVisible();
