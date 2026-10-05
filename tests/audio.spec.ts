@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { epub } from "./epub";
+import { applyReadingSettings } from "./reader-fixture";
 
 // Playable PCM fixture: tests the browser player, not ElevenLabs voice quality.
 function wav() {
@@ -58,12 +59,17 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   await expect(player).toHaveCount(0);
   await page.getByRole("button", { name: "Next page" }).click();
   await expect(page.getByRole("button", { name: "Listen to page" })).toBeEnabled();
+  await applyReadingSettings(page);
+  expect(captured).toHaveLength(1);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Listen to page" }).click();
   await expect(page.getByLabel("Voice", { exact: true })).toHaveValue("testVoice");
+  const shownCharacters = await page.getByRole("dialog").getByText(/^[\d,]+ characters$/).innerText();
   fail = true;
   await page.getByRole("button", { name: "Generate page audio" }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("quota");
   expect(captured[1]).not.toBe(captured[0]);
+  expect(shownCharacters).toBe(`${captured[1].length.toLocaleString()} characters`);
   expect(captured[1]).not.toContain("The morning walk");
   fail = false;
   await page.getByRole("button", { name: "Generate page audio" }).click();
