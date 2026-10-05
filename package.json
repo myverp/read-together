@@ -8,11 +8,11 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
-    "test:unit": "node --test checks/presence.test.mjs checks/elevenlabs.test.mjs checks/drawings.test.mjs checks/device-speech.test.mjs checks/room-history.test.mjs checks/upload-guard.test.mjs checks/progress.test.mjs checks/error-reporting.test.mjs checks/room-invitation.test.mjs checks/reader-navigation.test.mjs",
+    "test:unit": "node --test checks/presence.test.mjs checks/elevenlabs.test.mjs checks/drawings.test.mjs checks/device-speech.test.mjs checks/room-history.test.mjs checks/upload-guard.test.mjs checks/progress.test.mjs checks/error-reporting.test.mjs checks/room-invitation.test.mjs checks/reader-navigation.test.mjs checks/reading-settings.test.mjs",
     "test:presence": "node --test checks/presence.test.mjs",
     "test:integration": "node scripts/with-ci-env.mjs scripts/run-integration.mjs",
     "build:ci": "node scripts/with-ci-env.mjs node_modules/next/dist/bin/next build",
-    "test:browser:ci": "node scripts/with-ci-env.mjs node_modules/@playwright/test/cli.js test tests/reading.spec.ts tests/epub-security.spec.ts tests/profiles.spec.ts tests/progress.spec.ts tests/invitations.spec.ts tests/demo.spec.ts tests/home.spec.ts tests/highlights.spec.ts tests/drawings.spec.ts tests/audio.spec.ts tests/reader-contents.spec.ts"
+    "test:browser:ci": "node scripts/with-ci-env.mjs node_modules/@playwright/test/cli.js test tests/reading.spec.ts tests/epub-security.spec.ts tests/profiles.spec.ts tests/progress.spec.ts tests/invitations.spec.ts tests/demo.spec.ts tests/home.spec.ts tests/highlights.spec.ts tests/drawings.spec.ts tests/audio.spec.ts tests/reader-contents.spec.ts tests/reader-settings.spec.ts"
   },
   "dependencies": {
     "@sentry/node": "11.1.0",

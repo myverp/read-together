@@ -6,6 +6,7 @@ test.use({ actionTimeout: 20000 });
 
 async function selectText(page: Page, paragraph: number) {
   await page.bringToFront();
+  await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
   await expect(page.frameLocator(".book-view iframe").locator("p").nth(paragraph)).toBeVisible();
   await page.frameLocator(".book-view iframe").locator("p").nth(paragraph).evaluate(element => {
     const text = element.firstChild!;
@@ -28,6 +29,9 @@ async function marks(page: Page, code: string): Promise<HighlightSnapshot> {
 
 async function tapMark(page: Page, id: string) {
   await page.bringToFront();
+  // Rotation replaces the EPUB view. Read overlay coordinates only after its
+  // confirmed relocation, rather than tapping a rect from the outgoing view.
+  await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
   const rect = page.locator(`.shared-highlight[data-id="${id}"] rect`).first();
   await expect(rect).toBeVisible();
   const box = (await rect.boundingBox())!;

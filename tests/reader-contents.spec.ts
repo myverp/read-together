@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openReader } from "./reader-fixture";
+import { openReader, expectPassageInView } from "./reader-fixture";
 
 test("nested safe contents persists fragment CFI through delayed relocation, exit and reopen", async ({ page, request }) => {
   const room = await openReader(page, "nested");
@@ -38,7 +38,7 @@ test("nested safe contents persists fragment CFI through delayed relocation, exi
   await page.getByRole("button", { name: new RegExp(`Reader test.*${room.code}`) }).click();
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
   expect((await room.position()).cfi).toBe(saved.cfi);
-  await expect(page.frameLocator(".book-view iframe").locator("#passage")).toBeInViewport();
+  await expectPassageInView(page);
   await trigger.click(); await dialog.getByRole("button", { name: /<b>River passage/ }).click();
   await expect(dialog).toBeHidden();
 });
@@ -53,7 +53,7 @@ test("empty contents uses spine and EPUB 2 NCX retains nesting", async ({ page }
   await page.getByRole("button", { name: "Contents", exact: true }).click();
   await expect(page.getByRole("dialog").locator("ol ol")).toBeVisible();
   await page.getByRole("button", { name: "River passage", exact: true }).click();
-  await expect(page.frameLocator(".book-view iframe").locator("#passage")).toBeInViewport();
+  await expectPassageInView(page);
 });
 
 test("timed out relocation retains confirmed progress and can retry after late callback", async ({ page }) => {
