@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openReader } from "./reader-fixture";
+import { openReader, expectPassageInView } from "./reader-fixture";
 
 const KEY = "read-together:reading-settings:v1";
 test("settings preserve CFI and Done through font, theme, rotation, exit and refresh", async ({ page, request }) => {
@@ -19,7 +19,7 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
     await expect.poll(() => page.frameLocator(".book-view iframe").locator("body").evaluate(element => getComputedStyle(element).fontSize)).toBe(`${size}px`);
     expect((await room.position()).cfi).toBe(before.cfi); expect((await room.position()).done).toBe(true);
     await dialog.getByRole("button", { name: "Close reading settings" }).click();
-    await expect(page.frameLocator(".book-view iframe").locator("#passage")).toBeInViewport();
+    await expectPassageInView(page);
     await trigger.click();
   }
   for (const theme of ["Dark", "Sepia", "Light"]) {

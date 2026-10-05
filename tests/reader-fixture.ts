@@ -28,3 +28,22 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   };
   return { code, position, reopen, headers: { Authorization: `Bearer ${session.access_token}`, "X-Reader-Token": token } };
 }
+// WebKit's IntersectionObserver can report zero for a paragraph split across
+// CSS columns even when its first word is visible. Check the text range against
+// the clipped reader viewport, rather than the paragraph's fragmented box.
+export async function expectPassageInView(page: Page) {
+  await expect.poll(() => page.locator(".book-view iframe").evaluate(element => {
+    const frame = element as HTMLIFrameElement;
+    const passage = frame.contentDocument?.getElementById("passage");
+    if (!passage?.firstChild) return false;
+    const range = passage.ownerDocument.createRange();
+    range.setStart(passage.firstChild, 0); range.setEnd(passage.firstChild, 9);
+    const word = range.getClientRects()[0];
+    const origin = frame.getBoundingClientRect();
+    const clip = frame.closest(".book-view")!.getBoundingClientRect();
+    return !!word && origin.left + word.right > Math.max(clip.left, 0) &&
+      origin.left + word.left < Math.min(clip.right, innerWidth) &&
+      origin.top + word.bottom > Math.max(clip.top, 0) &&
+      origin.top + word.top < Math.min(clip.bottom, innerHeight);
+  })).toBe(true);
+}
