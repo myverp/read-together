@@ -345,7 +345,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       // Technical reflow keeps the text anchor and Done state, without synthetic Presence.
       if (!layout) publish.current(next);
       if (layout?.settings) { settingsRef.current = layout.settings; setSettings(layout.settings); setSettingsStorage(saveSettings(browserStorage(), layout.settings)); }
-      if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
+      if (audioOpen.current && !continuing) setAudioPage(visiblePageText(reader));
       return true;
     } catch {
       ignoreRelocations.current = true; layoutAnchor.current = previous.cfi || null;
@@ -386,7 +386,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   async function nextAudioPage() {
     const currentReader = rendition.current;
     if (!currentReader || (currentReader.currentLocation() as unknown as Location | null)?.atEnd) return null;
-    await navigate("next", true);
+    if (!await navigate("next", true) || !audioOpen.current) return null;
     const reader = rendition.current;
     if (!reader) return null;
     const page = visiblePageText(reader);
