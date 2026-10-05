@@ -9,7 +9,7 @@ Contents and personal reading appearance are integrated into `develop`. Physical
 | BLA-24, Contents | `0435191` | [PR #11](https://github.com/myverp/read-together/pull/11), `58d353d` | [PR run](https://github.com/myverp/read-together/actions/runs/37315615493), [push run](https://github.com/myverp/read-together/actions/runs/37315606330) passed |
 | BLA-25, settings | `2be304e` | [PR #12](https://github.com/myverp/read-together/pull/12), `516affa` | [PR run](https://github.com/myverp/read-together/actions/runs/37379290255), [push run](https://github.com/myverp/read-together/actions/runs/37379282766) passed |
 
-Contents commits: `19c4cb2`, `aac9e5a`, `2b84bf8`, `0435191`. Settings commits: `1819a9e`, `7435b99`, `23f860e`, `2ddb320`, `c9453f2`, `be6fce3`, `2be304e`. Acceptance tests and documentation are delivered in a separate PR; its final results are recorded below when verified.
+Contents commits: `19c4cb2`, `aac9e5a`, `2b84bf8`, `0435191`. Settings commits: `1819a9e`, `7435b99`, `23f860e`, `2ddb320`, `c9453f2`, `be6fce3`, `2be304e`. Acceptance tests (`ed20c4e`) and documentation (`6dcad05`) are delivered in [PR #13](https://github.com/myverp/read-together/pull/13). Its checks and merge record provide the final acceptance SHA and hosted results; the physical-device gap below remains open.
 
 ## Environment and coverage
 
@@ -22,6 +22,8 @@ The tests verify nested EPUB 3 and EPUB 2 NCX, spine fallback, plain-text long l
 Acceptance extends existing annotation/audio scenarios rather than duplicating them: drafts block Contents/Settings, saved highlight/comment and drawing payloads remain unchanged after Dark/28 px, the drawing's original snapshot stays white, and the partner stays in Light. Listen after reflow uses the visible-page text; changing settings alone sends no provider request. Swipe cases check both dialogs block gestures and navigation works after reflow, across sections and after reopening; native Chromium touch delivery is also exercised. CDP native touch injection is Chromium-only, so its WebKit counterpart is explicitly skipped; synthetic touch-event behavior is tested in both engines.
 
 Previous progress/takeover/offline/pending, invitations, hostile EPUB and two-reader scenarios remain in the bounded CI suite. No schema, dependency, provider configuration or production change is included.
+
+The affected local acceptance scenarios passed in both engines, with the Chromium-only WebKit skip. A highlight helper initially tapped an off-screen second paragraph after 28 px moved it to the next screen; it now finds a clipped visible part of the saved mark within four nearby screens before delivering a real touch. The original comment, ownership and deletion assertions remain. TypeScript passed on the final acceptance changes. Final hosted CI runs the complete 68-case selection (67 runnable, one explicit CDP skip) and the existing unit/build/API checks; see [PR #13 checks](https://github.com/myverp/read-together/pull/13/checks) and [acceptance branch runs](https://github.com/myverp/read-together/actions?query=branch%3Acodex%2Freading-acceptance).
 
 ## Visual and keyboard inspection
 
