@@ -14,9 +14,15 @@ import { api } from "@/lib/client";
 import { useDrawings } from "@/lib/use-drawings";
 import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
+import ReaderContents from "./ReaderContents";
+import { bookChapters, type Chapter } from "@/lib/reader-navigation";
 
 export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [sectionIndex, setSectionIndex] = useState<number | null>(null);
+  const modalOpen = useRef(false);
   const [demoTip, setDemoTip] = useState(false);
   useEffect(() => { try { setDemoTip(localStorage.getItem("read-together:demo") === room.code); } catch { /* Optional hint. */ } }, [room.code]);
   const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
@@ -28,6 +34,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const [unsafeExit, setUnsafeExit] = useState(false);
   const viewer = useRef<HTMLDivElement>(null);
   const rendition = useRef<Rendition | null>(null);
+  const openedBook = useRef<Book | null>(null);
   const current = useRef(me);
   // Saved CFI is a text anchor. Opening/reflow must not replace it with the
   // beginning of a differently sized page; navigation chooses a new anchor.
@@ -36,6 +43,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const [loading, setLoading] = useState(true);
   const [turning, setTurning] = useState(false);
   const navigationBusy = useRef(false);
+  const operation = useRef<{ ready: boolean; index: number | null; confirm: (location: Location) => void } | null>(null);
+  const ignoreRelocations = useRef(false);
   const [error, setError] = useState("");
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
@@ -59,6 +68,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const shownDialog = useRef(highlightDialog);
   const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
+  modalOpen.current = contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
   const swipeState = useRef({ loading, selection, highlightDialog, atStart, atEnd, drawing, drawingModal });
   swipeState.current = { loading, selection, highlightDialog, atStart, atEnd, drawing, drawingModal };
   const swipeNavigate = useRef(navigate);
@@ -97,6 +107,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
         await book.open(bytes, "binary");
         await Promise.all([book.opened, book.ready]);
         if (disposed) return;
+        openedBook.current = book;
+        setChapters(bookChapters(book));
         // WebKit blocks parent-installed event listeners when sandbox scripts are
         // disabled. Install CSP in the inert section document before serialization.
         book.spine.hooks.content.register((doc: Document) => {
@@ -125,7 +137,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
           contents.on("linkClicked", () => { layoutAnchor.current = null; });
         });
         const captureSelection = (cfi: string, contents: Contents) => {
-          if (disposed || controlLost.current || shownDialog.current || audioOpen.current || drawingRef.current) return;
+          if (disposed || controlLost.current || modalOpen.current || audioOpen.current || drawingRef.current) return;
           const quote = contents.window.getSelection()?.toString().trim();
           if (!quote) return;
           if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); setSelection(null); return; }
@@ -137,6 +149,13 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
           "img, svg": { "max-width": "100%", "max-height": "100%" } });
         reader.on("relocated", (location: Location) => {
           if (disposed || controlLost.current) return;
+          const active = operation.current;
+          if (active) {
+            if (active.ready && (active.index === null || active.index === location.start.index)) active.confirm(location);
+            return;
+          }
+          if (ignoreRelocations.current) return;
+          setSectionIndex(location.start.index);
           setAtStart(location.atStart); setAtEnd(location.atEnd);
           const label = book?.navigation.get(location.start.href)?.label?.trim();
           const cfi = layoutAnchor.current || location.start.cfi;
@@ -189,7 +208,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     void open();
     return () => {
       disposed = true; abort.abort(); clearTimeout(timer); clearInterval(selectionTimer); resize?.disconnect();
-      rendition.current = null; book?.destroy();
+      rendition.current = null; openedBook.current = null; operation.current = null; book?.destroy();
     };
   }, [room.bookUrl]);
 
@@ -232,7 +251,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       isBlocked: content => {
         const state = swipeState.current;
         const selected = content.window.getSelection();
-        return state.loading || state.drawing || state.drawingModal || audioOpen.current || navigationBusy.current || !!state.selection || !!state.highlightDialog ||
+        return state.loading || state.drawing || state.drawingModal || modalOpen.current || audioOpen.current || navigationBusy.current || !!state.selection || !!state.highlightDialog ||
           !!(selected && !selected.isCollapsed);
       },
       canTurn: direction => direction === "next" ? !swipeState.current.atEnd : !swipeState.current.atStart,
@@ -247,33 +266,45 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     setSelection(null);
   }
 
-  async function navigate(target: "prev" | "next" | string, continuing = false) {
+  async function navigate(target: "prev" | "next" | string, continuing = false, chapter?: Chapter) {
     const reader = rendition.current;
-    if (!reader || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal) return;
+    if (!reader || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal || shownDialog.current) return false;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
-    layoutAnchor.current = target === "prev" || target === "next" ? null : target;
+    const previous = { ...current.current };
+    layoutAnchor.current = target.startsWith("epubcfi(") ? target : null;
     clearSelection();
     setTurning(true); setError("");
     // next()/prev()/display() resolve before epub.js reports the text position
     // on an animation frame. Keep controls busy until that position is saved.
-    let relocated!: () => void;
-    const location = new Promise<void>(resolve => { relocated = resolve; });
-    reader.on("relocated", relocated);
+    let confirm!: (value: Location) => void;
+    const location = new Promise<Location>(resolve => { confirm = resolve; });
+    const active = { ready: false, index: chapter?.index ?? (target.startsWith("epubcfi(") ? openedBook.current?.spine.get(target)?.index ?? null : null), confirm };
+    operation.current = active;
     let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      await Promise.race([
+      const confirmed = await Promise.race([
         (async () => {
           if (target === "prev") await reader.prev();
           else if (target === "next") await reader.next();
           else await reader.display(target);
-          await location;
+          if (operation.current !== active) throw new Error("Cancelled navigation");
+          active.ready = true;
+          return await location;
         })(),
         new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error("Page turn timed out")), 5000); }),
       ]);
+      if (controlLost.current || rendition.current !== reader || operation.current !== active) return false;
+      ignoreRelocations.current = false;
+      setSectionIndex(confirmed.start.index); setAtStart(confirmed.atStart); setAtEnd(confirmed.atEnd);
+      const cfi = layoutAnchor.current || confirmed.start.cfi;
+      const label = chapter?.label || openedBook.current?.navigation.get(confirmed.start.href)?.label?.trim();
+      const next = { cfi, section: `p. ${confirmed.start.displayed.page} · ${label || `Section ${confirmed.start.index + 1}`}`.slice(0, 300), done: cfi === previous.cfi ? previous.done : false };
+      current.current = next; publish.current(next);
       if (audioPage && !continuing) setAudioPage(visiblePageText(reader));
-    } catch { layoutAnchor.current = current.current.cfi || null; setError("Could not turn to that position. Try reopening the room."); }
-    finally { clearTimeout(deadline); reader.off("relocated", relocated); navigationBusy.current = false; setTurning(false); }
+      return true;
+    } catch { ignoreRelocations.current = true; layoutAnchor.current = previous.cfi || null; setError("Could not open that position. Retry the section or close and reopen the room."); return false; }
+    finally { clearTimeout(deadline); if (operation.current === active) operation.current = null; navigationBusy.current = false; setTurning(false); }
   }
 
   function openAudio() {
@@ -349,6 +380,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
     </div>
     <div className="reader-toolbar">
+      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
       <button className="secondary invite-trigger" onClick={event => { event.currentTarget.focus(); setInviteOpen(true); }}>Invite</button>
       <button className="secondary partner-jump" disabled={takenOver || drawing || drawingModal || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)} aria-label="Jump to partner"><span>Jump to partner</span><span className="partner-jump-short">Partner</span></button>
       <button className="secondary details-toggle" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page">
@@ -383,6 +415,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       </div>}
     </div>
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
+    {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
+      onClose={() => setContentsOpen(false)} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) setContentsOpen(false); }); }} />}
     {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
