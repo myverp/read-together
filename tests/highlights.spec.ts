@@ -28,6 +28,9 @@ async function marks(page: Page, code: string): Promise<HighlightSnapshot> {
 
 async function tapMark(page: Page, id: string) {
   await page.bringToFront();
+  // Rotation replaces the EPUB view. Read overlay coordinates only after its
+  // confirmed relocation, rather than tapping a rect from the outgoing view.
+  await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
   const rect = page.locator(`.shared-highlight[data-id="${id}"] rect`).first();
   await expect(rect).toBeVisible();
   const box = (await rect.boundingBox())!;

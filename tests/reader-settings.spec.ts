@@ -25,6 +25,7 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
     await expect(page.locator(".reader")).toHaveAttribute("data-reading-theme", theme.toLowerCase());
   }
   await dialog.getByRole("radio", { name: "Sepia", exact: true }).check(); await expect(dialog.getByLabel("Text size")).toBeEnabled();
+  await expect(page.locator("#reader-details")).toHaveCSS("background-color", "rgb(233, 223, 199)");
   await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
   await trigger.click();
   await page.evaluate(() => { const frame = requestAnimationFrame.bind(window); window.requestAnimationFrame = fn => frame(time => { setTimeout(() => fn(time),400); }); });

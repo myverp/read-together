@@ -183,13 +183,21 @@ p { line-height: 1.5; }
 .chapter-current { font-size: .8em; }
 .reader[data-reading-theme] { background: var(--reading-bg); color: var(--reading-text); border-color: var(--line); }
 .reader[data-reading-theme="dark"] { color-scheme: dark; }
+.reader #reader-details { background: var(--surface); }
 .reader .reader-toolbar, .reader .reader-controls, .reader .progress-status, .reader .demo-tip, .reader .taken-over, .reader .exit-warning { background: var(--surface); color: var(--reading-text); border-color: var(--line); }
 .reader .book-area, .reader .book-view, .reader .book-loading, .reader .selection-actions { background: var(--reading-bg); color: var(--reading-text); }
 .reader dialog { background: var(--reading-bg); color: var(--reading-text); border-color: var(--line); }
 .reader dialog blockquote, .reader dialog input:not([type=radio]), .reader dialog textarea, .reader dialog select { background: var(--surface); color: var(--reading-text); border-color: var(--line); }
 .reader .error, .reader .drawing-delete { color: var(--reading-error) !important; }
+.reader .error { background: var(--surface); border-color: var(--line); }
 .reader .done { color: var(--accent); }
-.reader button:not(.secondary):not(.color-choice) { color: var(--reading-button-text); }
+.reader button:not(.secondary):not(.color-choice):not(.drawing-icon-button):not(.drawing-color-current):not(.drawing-swatch) { color: var(--reading-button-text); }
+.reader .drawing-tools, .reader .drawing-palette { background: var(--surface); color: var(--reading-text); border-color: var(--line); }
+.reader .drawing-size-label { color: var(--secondary); }
+.reader .drawing-size-label output { color: var(--reading-text); }
+.reader .drawing-tools .drawing-icon-button { background: var(--reading-bg); color: var(--accent); border-color: var(--line); }
+.reader .drawing-tools .drawing-icon-button.is-selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.reader .drawing-tools .drawing-icon-button[aria-label="Save"]:not(:disabled) { background: var(--accent); color: var(--reading-button-text); }
 .reader button.secondary { background: var(--reading-bg); color: var(--accent); border-color: var(--line); }
 .reader button:disabled, .reader button.secondary:disabled { background: var(--surface); color: var(--secondary); }
 .reader button.secondary:not(:disabled):hover { background: var(--surface); }
