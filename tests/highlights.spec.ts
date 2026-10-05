@@ -6,6 +6,7 @@ test.use({ actionTimeout: 20000 });
 
 async function selectText(page: Page, paragraph: number) {
   await page.bringToFront();
+  await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
   await expect(page.frameLocator(".book-view iframe").locator("p").nth(paragraph)).toBeVisible();
   await page.frameLocator(".book-view iframe").locator("p").nth(paragraph).evaluate(element => {
     const text = element.firstChild!;

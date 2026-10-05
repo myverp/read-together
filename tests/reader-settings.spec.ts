@@ -18,6 +18,9 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
     await expect(dialog.getByLabel("Text size")).toBeEnabled();
     await expect.poll(() => page.frameLocator(".book-view iframe").locator("body").evaluate(element => getComputedStyle(element).fontSize)).toBe(`${size}px`);
     expect((await room.position()).cfi).toBe(before.cfi); expect((await room.position()).done).toBe(true);
+    await dialog.getByRole("button", { name: "Close reading settings" }).click();
+    await expect(page.frameLocator(".book-view iframe").locator("#passage")).toBeInViewport();
+    await trigger.click();
   }
   for (const theme of ["Dark", "Sepia", "Light"]) {
     await dialog.getByRole("radio", { name: theme, exact: true }).check();

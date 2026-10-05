@@ -25,6 +25,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const [inviteOpen, setInviteOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const dialogTrigger = useRef<HTMLButtonElement | null>(null);
+  const restoreDialogFocus = useRef(false);
   const [initialSettings] = useState(() => loadSettings(browserStorage()));
   const [settings, setSettings] = useState(initialSettings.settings);
   const settingsRef = useRef(settings);
@@ -55,6 +57,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const [loading, setLoading] = useState(true);
   const [turning, setTurning] = useState(false);
   const navigationBusy = useRef(false);
+  const navigationDone = useRef<Promise<void> | null>(null);
   const operation = useRef<{ ready: boolean; index: number | null; confirm: (location: Location) => void } | null>(null);
   const ignoreRelocations = useRef(false);
   const [error, setError] = useState("");
@@ -95,6 +98,16 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
 
   useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage]);
+  useEffect(() => {
+    if (restoreDialogFocus.current && !contentsOpen && !settingsOpen && !turning && !loading && !navigationBusy.current) {
+      restoreDialogFocus.current = false;
+      dialogTrigger.current?.focus();
+    }
+  }, [contentsOpen, settingsOpen, turning, loading]);
+  function closeReadingDialog() {
+    restoreDialogFocus.current = true;
+    setContentsOpen(false); setSettingsOpen(false);
+  }
 
   useEffect(() => () => { audioController.current?.stop(); }, []);
   useEffect(() => {
@@ -159,7 +172,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
           contents.on("linkClicked", () => { layoutAnchor.current = null; });
         });
         const captureSelection = (cfi: string, contents: Contents) => {
-          if (disposed || controlLost.current || modalOpen.current || audioOpen.current || drawingRef.current) return;
+          if (disposed || controlLost.current || navigationBusy.current || modalOpen.current || audioOpen.current || drawingRef.current) return;
           const quote = contents.window.getSelection()?.toString().trim();
           if (!quote) return;
           if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); setSelection(null); return; }
@@ -238,7 +251,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     if (!reader || loading) return;
     // epub.js keys annotations by CFI: identical selections share one clickable overlay.
     const groups = new Map(highlights.map(mark => [mark.cfi, mark]));
-    const openMark = (cfi: string) => { audioController.current?.pause(); setSelection(null); setHighlightDialog({ cfi }); };
+    const openMark = (cfi: string) => { if (navigationBusy.current) return; audioController.current?.pause(); setSelection(null); setHighlightDialog({ cfi }); };
     groups.forEach(mark => {
       try {
         reader.annotations.highlight(mark.cfi, { id: mark.id }, () => openMark(mark.cfi), "shared-highlight", {
@@ -292,6 +305,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     if (!reader || navigationBusy.current || exitBusy.current || controlLost.current || drawingRef.current || drawingModal || shownDialog.current) return false;
     if (!continuing) audioController.current?.stop();
     navigationBusy.current = true;
+    let finishNavigation!: () => void;
+    navigationDone.current = new Promise<void>(resolve => { finishNavigation = resolve; });
     const previous = { ...current.current };
     const previousSettings = settingsRef.current;
     layoutAnchor.current = target.startsWith("epubcfi(") ? target : null;
@@ -323,12 +338,30 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
             const section = openedBook.current?.spine.get(chapter.target);
             if (!section) throw new Error("Missing section");
             await section.load(openedBook.current?.request);
-            if (!section.document.getElementById(decodeURIComponent(chapter.target.split("#").slice(1).join("#")))) throw new Error("Missing passage");
+            const passage = section.document.getElementById(decodeURIComponent(chapter.target.split("#").slice(1).join("#")));
+            if (!passage) throw new Error("Missing passage");
+            // The target passage is a stable text anchor; the beginning of its
+            // screen page can move away from it on the following resize.
+            const text = section.document.createTreeWalker(passage, NodeFilter.SHOW_TEXT);
+            let first = text.nextNode();
+            while (first && !first.textContent?.trim()) first = text.nextNode();
+            if (first) {
+              const range = section.document.createRange();
+              range.setStart(first, first.textContent!.search(/\S/)); range.collapse(true);
+              layoutAnchor.current = section.cfiFromRange(range);
+            } else layoutAnchor.current = section.cfiFromElement(passage);
             if (operation.current !== active) throw new Error("Cancelled navigation");
           }
           if (target === "prev") await reader.prev();
           else if (target === "next") await reader.next();
-          else await reader.display(target);
+          else await reader.display(chapter?.target?.includes("#") ? layoutAnchor.current! : target);
+          if (layout) {
+            // Content hooks apply the theme after the manager's first display.
+            // Let its geometry settle before positioning the text anchor again.
+            await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+            if (operation.current !== active) throw new Error("Cancelled navigation");
+            await reader.display(target);
+          }
           if (operation.current !== active) throw new Error("Cancelled navigation");
           active.ready = true;
           return await location;
@@ -359,6 +392,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     finally {
       clearTimeout(deadline); if (operation.current === active) operation.current = null;
       navigationBusy.current = false; setTurning(false);
+      finishNavigation(); navigationDone.current = null;
     }
   }
 
@@ -395,10 +429,11 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   }
 
   async function exitReader() {
-    if (exitBusy.current || navigationBusy.current) return;
+    if (exitBusy.current) return;
     exitBusy.current = true; setExiting(true);
     audioController.current?.stop();
     try {
+      await navigationDone.current;
       const result = await flushProgress();
       if (!result.safe) { setUnsafeExit(true); return; }
       onExit(result.pending ? "Your position is saved on this device. Reopen this room to finish syncing." : undefined);
@@ -444,8 +479,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
     </div>
     <div className="reader-toolbar">
-      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
-      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); audioController.current?.stop(); setError(""); setSettingsOpen(true); }}>Reading settings</button>
+      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); dialogTrigger.current = event.currentTarget; audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
+      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); dialogTrigger.current = event.currentTarget; audioController.current?.stop(); setError(""); setSettingsOpen(true); }}>Reading settings</button>
       <button className="secondary invite-trigger" onClick={event => { event.currentTarget.focus(); setInviteOpen(true); }}>Invite</button>
       <button className="secondary partner-jump" disabled={takenOver || drawing || drawingModal || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)} aria-label="Jump to partner"><span>Jump to partner</span><span className="partner-jump-short">Partner</span></button>
       <button className="secondary details-toggle" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page">
@@ -481,9 +516,9 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     </div>
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
-      onClose={() => setContentsOpen(false)} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) setContentsOpen(false); }); }} />}
+      onClose={closeReadingDialog} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) closeReadingDialog(); }); }} />}
     {settingsOpen && <ReadingSettingsDialog settings={settings} busy={turning} fixed={fixedLayout} storageAvailable={settingsStorage} error={error}
-      onChange={changeSettings} onClose={() => setSettingsOpen(false)} />}
+      onChange={changeSettings} onClose={closeReadingDialog} />}
     {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}
       onClose={() => { setHighlightDialog(null); clearSelection(); }}
       onSave={async input => { await save(input); notifyHighlights(); }}
