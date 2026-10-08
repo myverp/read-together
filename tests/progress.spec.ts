@@ -116,10 +116,12 @@ test("profile retries are bounded through 60 seconds of 503s, exit stays availab
 test("unanswered writes cannot hold exit; offline progress recovers and storage failure stays visible", async ({ page, request }) => {
   const room = await profileRoom(page, request);
   try {
-    let held: (() => void) | undefined;
+    const held = new Set<() => void>();
+    let releaseWrites = false;
     await page.route(`**/api/rooms/${room.code}/state`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
-      await new Promise<void>(resolve => { held = resolve; }); try { await route.abort(); } catch { /* exited reader */ }
+      if (!releaseWrites) await new Promise<void>(resolve => { held.add(resolve); });
+      try { await route.abort(); } catch { /* exited reader */ }
     });
     await page.getByRole("button", { name: "Next page" }).click(); await expect.poll(() => page.evaluate(code => !!localStorage.getItem(`read-together:${code}:1:pending`), room.code)).toBe(true);
     await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeEnabled();
@@ -133,7 +135,10 @@ test("unanswered writes cannot hold exit; offline progress recovers and storage 
       });
     });
     expect(elapsed).toBeLessThan(2500); await expect(page.getByRole("heading", { name: "Read together", exact: true })).toBeVisible();
-    held?.(); await page.unroute(`**/api/rooms/${room.code}/state`); await room.open(); await waitForSync(page);
+    releaseWrites = true;
+    for (const release of held) release();
+    await page.unrouteAll({ behavior: "wait" });
+    await room.open(); await waitForSync(page);
     await page.context().setOffline(true); await page.getByRole("button", { name: "Next page" }).click(); await expect(page.getByText("Waiting for connection", { exact: true })).toBeVisible();
     await page.context().setOffline(false); await waitForSync(page);
     const beforeStorageFailure = await (await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers })).json();
