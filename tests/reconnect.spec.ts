@@ -30,13 +30,13 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
   await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
   await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Reconnect.epub", mimeType: "application/epub+zip", buffer: await epub() });
   await page.getByRole("button", { name: "Upload & create room" }).click();
+  await selectReaderAction(page, "Room details");
   await expect(page.getByText("Reconnecting…", { exact: true })).toBeVisible();
   await page.evaluate(() => {
     window.dispatchEvent(new Event("online"));
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("online"));
   });
-  await selectReaderAction(page, "Room details");
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   expect(injected).toBe(2);
@@ -62,12 +62,12 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
     const before = joins.length;
     failures = 1;
     await page.getByRole("button", { name: "Next page" }).click();
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("Reconnecting…", { exact: true })).toBeVisible();
     await page.evaluate(() => {
       window.dispatchEvent(new Event("online"));
       document.dispatchEvent(new Event("visibilitychange"));
     });
-    await selectReaderAction(page, "Room details");
     await expect(page.getByText("Live", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     expect(injected).toBe(3);
