@@ -6,6 +6,7 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
   const joins: number[] = [];
   let failures = 2;
   let injected = 0;
+  let recoveryStartJoins: number | null = null;
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.routeWebSocket(/\/realtime\/v1\/websocket/, socket => {
@@ -19,6 +20,7 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
       if (event === "phx_join") joins.push(Date.now());
       if (event === "presence" && payload?.event === "track" && failures > 0) {
         failures--; injected++;
+        if (injected === 3) recoveryStartJoins = joins.length;
         const reply = { status: "error", response: { reason: "Injected track failure" } };
         socket.send(JSON.stringify(array
           ? [frame[0], frame[1], frame[2], "phx_reply", reply]
@@ -59,7 +61,6 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
     await expect(page.getByText("· online", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     // Fail the normal, debounced track path after the connection was healthy.
-    const before = joins.length;
     failures = 1;
     await page.getByRole("button", { name: "Next page" }).click();
     await selectReaderAction(page, "Room details");
@@ -71,7 +72,10 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
     await expect(page.getByText("Live", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     expect(injected).toBe(3);
-    expect(joins.length - before).toBe(1);
+    // Switching back from the partner tab can legitimately rejoin WebKit's
+    // suspended socket. Count recovery from the injected failure itself.
+    expect(recoveryStartJoins).not.toBeNull();
+    expect(joins.length - recoveryStartJoins!).toBe(1);
     const local = await page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`)!).cfi, code);
     await expect.poll(() => second.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:2:partner`) || "null")?.cfi, code)).toBe(local);
     expect(errors).toEqual([]);
