@@ -19,11 +19,30 @@ export default function ReaderMenu({ items, trigger, onOpenChange }: {
     };
     document.addEventListener("pointerdown", outside);
     // Pointer events in the EPUB iframe do not bubble to the parent document.
-    const bookDocuments = Array.from(document.querySelectorAll<HTMLIFrameElement>(".book-view iframe"))
-      .map(frame => frame.contentDocument).filter((doc): doc is Document => !!doc);
-    bookDocuments.forEach(doc => doc.addEventListener("pointerdown", outside));
+    // Reflow/rotation can replace the iframe while this menu remains open.
+    const bookDocuments = new Set<Document>();
+    const bookFrames = new Set<HTMLIFrameElement>();
+    const bindBookDocuments = () => {
+      document.querySelectorAll<HTMLIFrameElement>(".book-view iframe").forEach(frame => {
+        if (!bookFrames.has(frame)) {
+          bookFrames.add(frame);
+          frame.addEventListener("load", bindBookDocuments);
+        }
+        const doc = frame.contentDocument;
+        if (doc && !bookDocuments.has(doc)) {
+          bookDocuments.add(doc);
+          doc.addEventListener("pointerdown", outside);
+        }
+      });
+    };
+    bindBookDocuments();
+    const bookView = document.querySelector(".book-view");
+    const observer = new MutationObserver(bindBookDocuments);
+    if (bookView) observer.observe(bookView, { childList: true, subtree: true });
     return () => {
+      observer.disconnect();
       document.removeEventListener("pointerdown", outside);
+      bookFrames.forEach(frame => frame.removeEventListener("load", bindBookDocuments));
       bookDocuments.forEach(doc => doc.removeEventListener("pointerdown", outside));
     };
   }, [open, onOpenChange]);

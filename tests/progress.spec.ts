@@ -95,6 +95,7 @@ test("profile retries are bounded through 60 seconds of 503s, exit stays availab
     });
     await page.getByRole("button", { name: "Next page" }).click();
     await expect(page.getByText("Could not sync", { exact: true })).toBeVisible();
+    await expect(page.getByText("Latest changes are saved only on this device.", { exact: true })).toBeVisible();
     for (let second = 0; second < 60; second++) {
       await page.clock.runFor(1000);
       // Allow real HTTP responses between advancing application timers.
@@ -211,6 +212,8 @@ test("old-control pending needs explicit restoration; failure of both stores req
     await page.route(`**/api/rooms/${room.code}/state`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, body: "" }) : route.continue());
     await page.evaluate(() => { const original = Storage.prototype.setItem; Storage.prototype.setItem = function(key,value) { if (key.startsWith("read-together:")) throw new DOMException("Blocked", "SecurityError"); return original.call(this,key,value); }; });
     await page.getByRole("button", { name: "Next page" }).click(); await expect(page.getByText("Could not sync", { exact: true })).toBeVisible();
+    await expect(page.getByText("Latest changes are not saved on this device.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Latest changes are saved only on this device.", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Exit", exact: true }).click(); await expect(page.getByRole("button", { name: "Stay", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Stay", exact: true }).click(); await expect(page.getByRole("button", { name: "Next page" })).toBeEnabled();
     await page.getByRole("button", { name: "Exit", exact: true }).click(); await page.getByRole("button", { name: "Exit without saving", exact: true }).click();
