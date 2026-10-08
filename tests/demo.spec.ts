@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
@@ -25,7 +26,9 @@ test("a clean visitor opens the real demo within a minute, invites a partner and
     const partner = await context.newPage(); await partner.goto(url);
     await partner.getByRole("button", { name: "Join room", exact: true }).click();
     await expect(partner.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("· online", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("button", { name: "Continue demo", exact: true }).click();
     await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();

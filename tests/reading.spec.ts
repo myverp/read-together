@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect, type Page } from "@playwright/test";
 import { epub } from "./epub";
 
@@ -14,7 +15,9 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
   await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Test walk.epub", mimeType: "application/epub+zip", buffer: await epub() });
   await page.getByRole("button", { name: "Upload & create room" }).click();
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+  await selectReaderAction(page, "Room details");
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   const roomData = await (await roomResponse).json();
   const signedBook = await request.get(roomData.bookUrl);
   expect(signedBook.ok()).toBe(true);
@@ -34,25 +37,22 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
     await second.getByLabel("Room code").fill(code);
     await second.getByRole("button", { name: "Join / reopen room" }).click();
     await expect(second.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("· online", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    const height = await second.locator(".book-view").evaluate(el => el.clientHeight);
+    await selectReaderAction(second, "Room details");
     await expect(second.getByText("· online", { exact: true })).toBeVisible();
-    const expandedHeight = await second.locator(".book-view").evaluate(el => el.clientHeight);
-    await second.getByRole("button", { name: "Collapse room details" }).click();
+    expect(await second.locator(".book-view").evaluate(el => el.clientHeight)).toBe(height);
+    await second.keyboard.press("Escape");
     await expect(second.getByRole("button", { name: "Exit", exact: true })).toBeVisible();
-    await expect(second.getByRole("region", { name: "Reader positions" })).toBeHidden();
-    await expect(second.getByRole("button", { name: "Jump to partner" })).toBeEnabled();
-    await expect.poll(() => second.locator(".book-view").evaluate(el => el.clientHeight)).toBeGreaterThan(expandedHeight + 60);
-    await second.screenshot({ path: testInfo.outputPath("reader-collapsed.png") });
-    await second.getByRole("button", { name: "Expand room details" }).click();
-    await expect(second.getByRole("button", { name: "Exit", exact: true })).toBeVisible();
-    await expect.poll(() => second.locator(".book-view").evaluate(el => el.clientHeight)).toBe(expandedHeight);
     const initial = await position(page, code, 1);
     await page.getByRole("button", { name: "Next page" }).click();
     await expect.poll(async () => (await position(page, code, 1))?.cfi).not.toBe(initial.cfi);
     await expect.poll(async () => (await position(second, code, 2, true))?.cfi).toBe((await position(page, code, 1)).cfi);
     // Partner navigation does not move the second reader automatically.
     expect((await position(second, code, 2)).cfi).toBe(initial.cfi);
-    await second.getByRole("button", { name: "Jump to partner" }).click();
+    await selectReaderAction(second, "Partner");
     await expect.poll(async () => (await position(second, code, 2))?.cfi).toBe((await position(page, code, 1)).cfi);
     await page.getByRole("button", { name: "Done here", exact: true }).click();
     await expect.poll(async () => (await position(second, code, 2, true))?.done).toBe(true);
@@ -61,11 +61,15 @@ test("two mobile readers upload, join, sync positions/status, reconnect and reop
     await second.reload();
     await expect(second.getByRole("button", { name: "Keep reading" })).toBeEnabled();
     await secondContext.setOffline(true);
+    await selectReaderAction(second, "Room details");
     await expect(second.getByText("Offline", { exact: true })).toBeVisible();
+    await second.keyboard.press("Escape");
     await second.getByRole("button", { name: "Next page" }).click();
     await expect.poll(async () => (await position(second, code, 2))?.done).toBe(false);
     await secondContext.setOffline(false);
+    await selectReaderAction(second, "Room details");
     await expect(second.getByText("Live", { exact: true })).toBeVisible();
+    await second.keyboard.press("Escape");
     await expect.poll(async () => (await position(page, code, 1, true))?.cfi).toBe((await position(second, code, 2)).cfi);
     await second.setViewportSize({ width: 844, height: 390 });
     await expect.poll(() => second.locator(".book-view").evaluate(el => el.clientHeight)).toBeGreaterThan(100);
@@ -93,5 +97,4 @@ test("rejects a corrupt EPUB before creating a room", async ({ page }) => {
   await expect(page.locator("p[role=alert]")).toBeVisible();
   await expect(page.getByRole("button", { name: "Upload & create room" })).toBeEnabled();
 });
-
 

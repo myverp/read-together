@@ -1,17 +1,18 @@
+import { selectReaderAction, waitForSync } from "./reader-menu";
 import { expect, type Page } from "@playwright/test";
 import { epub } from "./epub";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes, randomUUID } from "node:crypto";
 
 export async function applyReadingSettings(page: Page, fontSize = 28, theme = "Dark") {
-  await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+  await selectReaderAction(page, "Reading settings");
   const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
   await dialog.getByLabel("Text size").selectOption(String(fontSize));
   await expect(dialog.getByLabel("Text size")).toBeEnabled();
   await dialog.getByRole("radio", { name: theme, exact: true }).check();
   await expect(dialog.getByLabel("Text size")).toBeEnabled();
   await dialog.getByRole("button", { name: "Close reading settings" }).click();
-  await expect(page.getByRole("button", { name: "Contents", exact: true })).toBeEnabled();
+  await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
 }
 
 export async function openReader(page: Page, navigation: Parameters<typeof epub>[1] = "normal", appearance: Parameters<typeof epub>[2] = "plain") {
@@ -21,6 +22,10 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const client = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false } });
   const email = `reader-${randomUUID()}@example.test`, password = randomBytes(32).toString("hex"), token = randomBytes(32).toString("hex");
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true }); if (created.error) throw created.error;
+  // The home profile request and room upload both ensure a profile. Provision
+  // this fixture before browser requests so layout tests do not race those inserts.
+  const profile = await admin.from("profiles").insert({ user_id: created.data.user!.id, name: "Reader test" });
+  if (profile.error) throw profile.error;
   const signed = await client.auth.signInWithPassword({ email, password }); if (signed.error) throw signed.error;
   const session = signed.data.session!;
   await page.addInitScript(({ session, token }) => { localStorage.setItem("sb-127-auth-token", JSON.stringify(session)); localStorage.setItem("read-together:token", token); }, { session, token });
@@ -31,11 +36,11 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const code = await page.evaluate(() => localStorage.getItem("read-together:room")!);
   const position = () => page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`) || "null"), code);
   await expect.poll(async () => (await position())?.cfi).toMatch(/^epubcfi\(/);
-  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  await waitForSync(page);
   const reopen = async () => {
     await page.getByRole("button", { name: "Exit", exact: true }).click();
     await page.getByRole("button", { name: new RegExp(`Reader test.*${code}`) }).click();
-    await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
+    await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
   };
   return { code, position, reopen, headers: { Authorization: `Bearer ${session.access_token}`, "X-Reader-Token": token } };
 }
