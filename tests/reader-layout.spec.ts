@@ -10,6 +10,8 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await expect(page.locator(".progress-status")).toHaveCount(0);
   await expect(page.locator(".reader-top button")).toHaveCount(2);
   await expect(page.locator(".reader-controls button")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Draw on page" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(page.getByRole("button", { name: "Hide drawings" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await trigger.focus(); await page.keyboard.press("ArrowDown");
   const items = page.getByRole("menuitem");
   await expect(items).toHaveText(["Contents", "Listen", "Reading settings", "Invite", "Partner", "Room details"]);

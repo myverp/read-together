@@ -191,8 +191,8 @@ p { line-height: 1.5; }
 
 .reader-top { display: flex; justify-content: space-between; flex-shrink: 0; padding: 6px 16px; background: var(--reading-bg); }
 .reader-menu-anchor { position: relative; }
-.reader .reader-icon-button { display: grid; place-items: center; width: 48px; height: 48px; min-height: 44px; padding: 10px; border: 0; border-radius: 12px; background: transparent; }
-.reader .reader-icon-button:disabled { background: transparent; }
+.reader button.reader-icon-button { display: grid; place-items: center; width: 48px; height: 48px; min-height: 44px; padding: 10px; border: 0; border-radius: 12px; background: transparent; }
+.reader button.reader-icon-button:disabled { background: transparent; }
 .reader-menu { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; width: min(288px, calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))); max-height: calc(100dvh - 78px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--reading-bg); box-shadow: 0 8px 32px #0002; }
 .reader .reader-menu button { display: flex; align-items: center; gap: 16px; text-align: left; width: 100%; min-height: 48px; padding: 10px 12px; border: 0; border-radius: 8px; color: var(--reading-text); font-size: .9375rem; }
 .reader-menu svg { flex-shrink: 0; color: var(--accent); }
@@ -200,6 +200,7 @@ p { line-height: 1.5; }
 .reader-menu button:disabled svg { color: inherit; }
 .reader-menu-separator { height: 1px; background: var(--line); margin: 6px 12px; }
 .reader-eye-row { flex-shrink: 0; padding: 0 16px 4px; }
+.reader .reader-eye-row button.reader-icon-button:not(:disabled):hover { background: transparent; }
 .room-details-dialog .reader-status { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-inline: 0; }
 .room-details-dialog .connection { padding-inline: 0; }
 .room-details-dialog .room-colors { flex-wrap: wrap; overflow: visible; padding-inline: 3px; gap: 8px; }

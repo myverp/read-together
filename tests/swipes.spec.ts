@@ -77,9 +77,9 @@ test('swipes keep working across EPUB sections and after reopening',async({page}
  await page.goto('/');await expect(page.getByLabel('Choose an EPUB')).toBeEnabled();
  await page.getByLabel('Choose an EPUB').setInputFiles({name:'Chapters.epub',mimeType:'application/epub+zip',buffer:await zip.generateAsync({type:'nodebuffer'})});
  await page.getByRole('button',{name:'Upload & create room'}).click();await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
- const label=page.getByRole('region',{name:'Reader positions'});
- for(let i=0;i<12 && !(await label.innerText()).includes('Coming home');i++){const before=await pos(page);await swipe(page);await expect.poll(()=>pos(page)).not.toBe(before);}
- await expect(label).toContainText('Coming home');const chapterStart=await pos(page);
+ const label=()=>page.evaluate(()=>{const code=localStorage.getItem('read-together:room');return JSON.parse(localStorage.getItem(`read-together:${code}:1`) || '{}').section || '';});
+ for(let i=0;i<12 && !(await label()).includes('Coming home');i++){const before=await pos(page);await swipe(page);await expect.poll(()=>pos(page)).not.toBe(before);}
+ await expect.poll(label).toContain('Coming home');const chapterStart=await pos(page);
  await swipe(page);await expect.poll(()=>pos(page)).not.toBe(chapterStart);
  await swipe(page,160);await expect.poll(()=>pos(page)).toBe(chapterStart);
  await page.getByRole('button',{name:'Exit',exact:true}).click();
