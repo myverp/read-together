@@ -21,6 +21,10 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await page.keyboard.press("ArrowDown"); await expect(items.first()).toBeFocused();
   await page.keyboard.press("ArrowDown"); await expect(items.nth(1)).toBeFocused();
   await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeFocused();
   for (const name of ["Contents", "Reading settings", "Invite", "Room details", "Listen"]) {
     await selectReaderAction(page, name);
     await expect(page.getByRole("dialog")).toBeVisible();
@@ -29,6 +33,17 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   }
   expect(await page.locator(".book-view").boundingBox()).toEqual(box);
   expect(await room.position()).toEqual(before);
+  for (const [theme, background] of [["Dark", "rgb(23, 25, 30)"], ["Sepia", "rgb(244, 236, 216)"], ["Light", "rgb(255, 255, 255)"]]) {
+    await selectReaderAction(page, "Reading settings");
+    await page.getByRole("radio", { name: theme, exact: true }).check();
+    await expect(page.getByLabel("Text size")).toBeEnabled();
+    await page.getByRole("button", { name: "Close reading settings" }).click();
+    await openReaderMenu(page);
+    await expect(page.getByRole("menu")).toHaveCSS("background-color", background);
+    await expect(page.locator(".reader-top")).toHaveCSS("background-color", background);
+    await page.screenshot({ path: testInfo.outputPath(`menu-${theme.toLowerCase()}.png`) });
+    await page.keyboard.press("Escape");
+  }
   await openReaderMenu(page);
   await page.mouse.click(box!.x + box!.width - 12, box!.y + box!.height - 12);
   await expect(page.getByRole("menu")).toHaveCount(0);
@@ -52,4 +67,19 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Show drawings" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Show drawings" }).click();
+});
+
+test("reader menu still dismisses over the book after rotation replaces its iframe", async ({ page }) => {
+  const room = await openReader(page);
+  const before = await room.position();
+  await openReaderMenu(page);
+  const oldFrame = await page.locator(".book-view iframe").elementHandle();
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect.poll(() => oldFrame!.evaluate(frame => frame.isConnected)).toBe(false);
+  await expect(page.getByRole("button", { name: "Next page" })).toBeEnabled();
+  await expect(page.getByRole("menu")).toBeVisible();
+  const book = await page.locator(".book-view").boundingBox();
+  await page.mouse.click(book!.x + book!.width - 20, book!.y + 30);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  expect(await room.position()).toEqual(before);
 });
