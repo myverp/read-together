@@ -1,7 +1,9 @@
 "use client";
 import InviteDialog from "./InviteDialog";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import Image from "next/image";
+import ReaderMenu from "./ReaderMenu";
+import ReaderIcon from "./ReaderIcon";
+import ReaderRoomDetails from "./ReaderRoomDetails";
 import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
 import { useRoom } from "@/lib/use-room";
 import type { Room } from "@/lib/types";
@@ -63,7 +65,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const [error, setError] = useState("");
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
-  const [detailsExpanded, setDetailsExpanded] = useState(true);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [audioPage, setAudioPage] = useState<{ text: string; id: string } | null>(null);
   const [audioKey, setAudioKey] = useState("");
   const [audioVoice, setAudioVoice] = useState<AudioVoice | null>(null);
@@ -83,7 +86,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const shownDialog = useRef(highlightDialog);
   const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
-  modalOpen.current = contentsOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
+  modalOpen.current = menuOpen || detailsExpanded || contentsOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
   reflow.current = () => {
     if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog) { resizePending.current = true; return; }
     resizePending.current = false;
@@ -99,11 +102,11 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
 
   useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage]);
   useEffect(() => {
-    if (restoreDialogFocus.current && !contentsOpen && !settingsOpen && !turning && !loading && !navigationBusy.current) {
+    if (restoreDialogFocus.current && !contentsOpen && !settingsOpen && !audioPage && !turning && !loading && !navigationBusy.current) {
       restoreDialogFocus.current = false;
       dialogTrigger.current?.focus();
     }
-  }, [contentsOpen, settingsOpen, turning, loading]);
+  }, [contentsOpen, settingsOpen, audioPage, turning, loading]);
   function closeReadingDialog() {
     restoreDialogFocus.current = true;
     setContentsOpen(false); setSettingsOpen(false);
@@ -412,6 +415,7 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   }
 
   function closeAudio() {
+    restoreDialogFocus.current = true;
     audioOpen.current = false; setAudioPage(null);
     // Restore layout after the settings keyboard or a device rotation.
     reflow.current();
@@ -463,47 +467,33 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
     finally { setStartingDrawing(false); }
   }
 
+  const syncProblem = (room.controlVersion ?? 0) > 0 && ["Could not sync", "Waiting for connection", "Sign in again to sync", "Choose which position to keep"].includes(syncState);
   const palette = READING_PALETTES[settings.theme];
   return <main className="reader" data-reading-theme={settings.theme} style={{ "--reading-bg": palette.background, "--reading-text": palette.text,
     "--surface": palette.surface, "--secondary": palette.muted, "--accent": palette.link, "--line": palette.line, "--reading-error": palette.error,
     "--reading-button-text": settings.theme === "dark" ? palette.background : "#ffffff" } as CSSProperties}>
-    <div id="reader-details" hidden={!detailsExpanded}>
-    <section className="reader-status" aria-label="Reader positions">
-      <div><strong>You</strong><span>{me.section}</span><span className={me.done ? "done" : "muted"}>{me.done ? "Done here" : "Reading"}</span></div>
-      <div><strong>Partner <small>{online ? "· online" : "· offline"}</small></strong>
-        <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
-        <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Invite someone to read"}</span>
-      </div>
-    </section>
-    <p className="connection" role="status">{connection}</p>
-    <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
-    </div>
-    <div className="reader-toolbar">
-      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); dialogTrigger.current = event.currentTarget; audioController.current?.stop(); setError(""); setContentsOpen(true); }}>Contents</button>
-      <button className="secondary" disabled={takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage} onClick={event => { clearSelection(); event.currentTarget.focus(); dialogTrigger.current = event.currentTarget; audioController.current?.stop(); setError(""); setSettingsOpen(true); }}>Reading settings</button>
-      <button className="secondary invite-trigger" onClick={event => { event.currentTarget.focus(); setInviteOpen(true); }}>Invite</button>
-      <button className="secondary partner-jump" disabled={takenOver || drawing || drawingModal || !partner.cfi || loading || turning} onClick={() => navigate(partner.cfi)} aria-label="Jump to partner"><span>Jump to partner</span><span className="partner-jump-short">Partner</span></button>
-      <button className="secondary details-toggle" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page">
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m4 20 4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20Z"/><path d="m14.5 6.5 3 3"/></svg>
-      </button>
-      <button className="secondary details-toggle" aria-pressed={drawingsHidden} onClick={() => setDrawingsHidden(value => !value)} aria-label={drawingsHidden ? "Show drawings" : "Hide drawings"} title={drawingsHidden ? "Show drawings" : "Hide drawings"}>
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{drawingsHidden && <path d="M3 21 21 3" strokeWidth="2.5"/>}</svg>
-      </button>
-      <button className="secondary details-toggle" disabled={takenOver || loading || turning || drawing || drawingModal || !!highlightDialog} onClick={openAudio} aria-label="Listen to page" title="Listen to page">
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/></svg>
-      </button>
-      <button className="secondary details-toggle" aria-expanded={detailsExpanded} aria-controls="reader-details" aria-label={detailsExpanded ? "Collapse room details" : "Expand room details"} onClick={() => setDetailsExpanded(expanded => !expanded)}>
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={detailsExpanded ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} /></svg>
-      </button>
-      <button className="secondary details-toggle room-exit" disabled={exiting || turning} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><Image src="/icons/open-door.png" alt="" width={24} height={24} unoptimized /></button>
-    </div>
+    <header className="reader-top">
+      <ReaderMenu trigger={dialogTrigger} onOpenChange={setMenuOpen} items={[
+        { label: "Contents", icon: "contents", disabled: takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage,
+          onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setContentsOpen(true); } },
+        { label: "Listen", icon: "listen", disabled: takenOver || loading || turning || drawing || drawingModal || !!highlightDialog, onSelect: openAudio },
+        { label: "Reading settings", icon: "settings", disabled: takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage,
+          onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setSettingsOpen(true); } },
+        { label: "Invite", icon: "invite", onSelect: () => setInviteOpen(true) },
+        { label: "Partner", icon: "partner", disabled: takenOver || drawing || drawingModal || !partner.cfi || loading || turning, onSelect: () => { void navigate(partner.cfi); } },
+        { label: "Room details", icon: "info", onSelect: () => setDetailsExpanded(true) },
+      ]} />
+      <button className="secondary reader-icon-button room-exit" disabled={exiting || turning} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><ReaderIcon name="exit" /></button>
+    </header>
     {demoTip && <div className="demo-tip"><p>Turn a page, select a phrase to highlight, then Invite someone to read with you.</p><button className="secondary" aria-label="Dismiss demo tips" onClick={() => setDemoTip(false)}>Got it</button></div>}
-    <div className="progress-status" role="status"><span>{storageError || "Saved on this device"}</span>{(room.controlVersion ?? 0) > 0 && <span>{syncState}</span>}
+    {(storageError && storageError !== "Checking device storage…" || syncProblem || stalePending) && <div className="progress-status" role="status">
+      {storageError && storageError !== "Checking device storage…" && <span>{storageError}</span>}
+      {syncProblem && <><span>{syncState}</span><span>{storageError.startsWith("Browser storage") ? "Latest changes are not saved on this device." : "Latest changes are saved only on this device."}</span></>}
       {(syncState === "Could not sync" || syncState === "Waiting for connection") && !takenOver && <button className="secondary" onClick={retrySync}>Retry sync</button>}
       {syncState === "Sign in again to sync" && <span>Exit and sign in again, then reopen this room.</span>}
       {syncState === "Choose which position to keep" && <><button onClick={keepLocal} disabled={takenOver || loading || turning}>Keep this position</button><button className="secondary" disabled={takenOver || loading || turning} onClick={() => { const position = useCloud(); if (position?.cfi) void navigate(position.cfi); }}>Use cloud position</button></>}
       {stalePending && <><span>A local position remains from another control session.</span><button className="secondary" disabled={takenOver || loading || turning} onClick={() => { const position = restoreLocal(); if (position?.cfi) void navigate(position.cfi); }}>Restore local position</button></>}
-    </div>
+    </div>}
     {unsafeExit && <div className="exit-warning" role="alert"><p>Your latest position could not be saved on this device or confirmed in the cloud.</p><button onClick={() => setUnsafeExit(false)}>Stay</button><button className="secondary" onClick={() => onExit("You left without saving your latest position. It may be lost.")}>Exit without saving</button></div>}
     {(error || highlightError || drawingError) && <p className="error reader-error" role="alert">{error || highlightError || drawingError}</p>}
     {takenOver && <div className="taken-over" role="alert"><strong>Continued on another device</strong><span>This reader is now view-only. Exit and choose Continue here to take control again.</span></div>}
@@ -514,6 +504,17 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
         <button className="secondary" onClick={clearSelection} aria-label="Dismiss selection">×</button>
       </div>}
     </div>
+    {detailsExpanded && <ReaderRoomDetails onClose={() => setDetailsExpanded(false)}>
+    <section className="reader-status" aria-label="Reader positions">
+      <div><strong>You</strong><span>{me.section}</span><span className={me.done ? "done" : "muted"}>{me.done ? "Done here" : "Reading"}</span></div>
+      <div><strong>Partner <small>{online ? "· online" : "· offline"}</small></strong>
+        <span>{partner.cfi ? partner.section : "Waiting for partner"}</span>
+        <span className={partner.done ? "done" : "muted"}>{partner.cfi ? `${partner.done ? "Done here" : "Reading"}${online ? "" : " · last seen"}` : "Invite someone to read"}</span>
+      </div>
+    </section>
+    <p className="connection" role="status">{connection}</p>
+    <div className="room-colors" aria-label="Your room highlight color">{HIGHLIGHT_COLORS.map((color, index) => <button key={color} disabled={takenOver || index === partnerColor} className={currentColor === index ? "color-choice selected" : "color-choice"} style={{ backgroundColor: color }} aria-label={index === partnerColor ? `Color ${index + 1} is used by your partner` : `Use color ${index + 1} in this room`} aria-pressed={currentColor === index} title={index === partnerColor ? "Used by your partner" : undefined} onClick={() => void changeColor(index)} />)}</div>
+    </ReaderRoomDetails>}
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
       onClose={closeReadingDialog} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) closeReadingDialog(); }); }} />}
@@ -524,10 +525,14 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
       onSave={async input => { await save(input); notifyHighlights(); }}
       onRemove={async id => { await remove(id); notifyHighlights(); }} />}
     {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onNextPage={nextAudioPage} onController={setAudioController} onClose={closeAudio} />}
+    <div className="reader-eye-row">
+      <button className="secondary reader-icon-button" aria-pressed={drawingsHidden} onClick={() => setDrawingsHidden(value => !value)} aria-label={drawingsHidden ? "Show drawings" : "Hide drawings"} title={drawingsHidden ? "Show drawings" : "Hide drawings"}><ReaderIcon name="eye" hidden={drawingsHidden} /></button>
+    </div>
     <footer className="reader-controls">
-      <button className="secondary" disabled={takenOver || drawing || drawingModal || loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page">← Previous</button>
+      <button className="secondary reader-icon-button" title="Previous page" disabled={takenOver || drawing || drawingModal || loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page"><ReaderIcon name="prev" /></button>
       <button aria-pressed={me.done} disabled={takenOver || drawing || drawingModal || loading || turning || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
-      <button className="secondary" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page">Next →</button>
+      <button className="secondary reader-icon-button" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page"><ReaderIcon name="draw" /></button>
+      <button className="secondary reader-icon-button" title="Next page" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page"><ReaderIcon name="next" /></button>
     </footer>
   </main>;
 }
