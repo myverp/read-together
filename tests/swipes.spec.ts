@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect, type Page } from '@playwright/test';
 import { epub } from './epub';
 import { applyReadingSettings } from './reader-fixture';
@@ -32,11 +33,11 @@ test('swipes match buttons and reject short, vertical, multitouch, long press, s
   await swipe(page,...args as [number,number,number,number]); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
  }
  for(const name of ['Contents', 'Reading settings']) {
-  await page.getByRole('button',{name,exact:true}).click();
+  await selectReaderAction(page, name);
   await expect(page.getByRole('dialog')).toBeVisible();
   await swipe(page); await page.waitForTimeout(250); expect(await pos(page)).toBe(first);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button',{name,exact:true})).toBeFocused();
+  await expect(page.getByRole("button",{name:"Reader menu",exact:true})).toBeFocused();
  }
  await page.frameLocator('.book-view iframe').locator('p').first().evaluate(el=>{const range=el.ownerDocument.createRange();range.selectNodeContents(el);const s=el.ownerDocument.getSelection()!;s.removeAllRanges();s.addRange(range);});
  await expect(page.getByRole('button',{name:'Highlight selection',exact:true})).toBeVisible();

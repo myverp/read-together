@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { epub } from "./epub";
 
@@ -9,7 +10,7 @@ test("invitation GET is private, joining is explicit, and route refresh/history 
   const code = await page.evaluate(() => localStorage.getItem("read-together:room")!);
   const path = `/room/${code}`;
   await expect(page).toHaveURL(`${baseURL}${path}`);
-  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  await selectReaderAction(page, "Invite");
   await expect(page.getByLabel("Invitation link")).toHaveValue(`${baseURL}${path}`);
   const html = await (await request.get(path)).text();
   const headers = (await request.get(path)).headers();
@@ -25,7 +26,7 @@ test("invitation GET is private, joining is explicit, and route refresh/history 
   await expect(page.getByLabel("Invitation link")).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.getByRole("button", { name: "Invite", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Reader menu", exact: true })).toBeFocused();
 
   const context = await browser.newContext({ ...testInfo.project.use, baseURL });
   const second = await context.newPage();
@@ -40,7 +41,9 @@ test("invitation GET is private, joining is explicit, and route refresh/history 
     await second.getByRole("button", { name: "Join room", exact: true }).click();
     await expect(second.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
     expect(admissions).toBe(1);
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("· online", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     await second.reload();
     await expect(second.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
     expect(admissions).toBe(2);

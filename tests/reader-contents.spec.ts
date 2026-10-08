@@ -1,11 +1,12 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { openReader, expectPassageInView } from "./reader-fixture";
 
 test("nested safe contents persists fragment CFI through delayed relocation, exit and reopen", async ({ page, request }) => {
   const room = await openReader(page, "nested");
   await page.setViewportSize({ width: 320, height: 844 });
-  const trigger = page.getByRole("button", { name: "Contents", exact: true });
-  await trigger.click();
+  const trigger = page.getByRole("button", { name: "Reader menu", exact: true });
+  await selectReaderAction(page, "Contents");
   const dialog = page.getByRole("dialog", { name: "Contents", exact: true });
   await expect(dialog.getByRole("button", { name: "External section" })).toBeDisabled();
   await expect(dialog.getByRole("button", { name: "Unsafe section" })).toBeDisabled();
@@ -24,7 +25,7 @@ test("nested safe contents persists fragment CFI through delayed relocation, exi
     if (route.request().method() === "PATCH") await new Promise(resolve => setTimeout(resolve, 800));
     await route.continue();
   });
-  await trigger.click();
+  await selectReaderAction(page, "Contents");
   await dialog.getByRole("button", { name: /<b>River passage/ }).click();
   await expect(dialog).toBeHidden();
   const saved = await room.position(); expect(saved.cfi).toMatch(/^epubcfi\(/);
@@ -39,18 +40,18 @@ test("nested safe contents persists fragment CFI through delayed relocation, exi
   await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
   expect((await room.position()).cfi).toBe(saved.cfi);
   await expectPassageInView(page);
-  await trigger.click(); await dialog.getByRole("button", { name: /<b>River passage/ }).click();
+  await selectReaderAction(page, "Contents"); await dialog.getByRole("button", { name: /<b>River passage/ }).click();
   await expect(dialog).toBeHidden();
 });
 
 test("empty contents uses spine and EPUB 2 NCX retains nesting", async ({ page }) => {
   await openReader(page, "empty");
-  await page.getByRole("button", { name: "Contents", exact: true }).click();
+  await selectReaderAction(page, "Contents");
   await page.getByRole("button", { name: "Section 2", exact: true }).click();
   await expect(page.frameLocator(".book-view iframe").getByRole("heading", { name: "Coming home" })).toBeVisible();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await openReader(page, "ncx");
-  await page.getByRole("button", { name: "Contents", exact: true }).click();
+  await selectReaderAction(page, "Contents");
   await expect(page.getByRole("dialog").locator("ol ol")).toBeVisible();
   await page.getByRole("button", { name: "River passage", exact: true }).click();
   await expectPassageInView(page);
@@ -65,7 +66,7 @@ test("timed out relocation retains confirmed progress and can retry after late c
     (window as unknown as { lateFrames: number }).lateFrames = 0;
     window.requestAnimationFrame = fn => frame(time => { setTimeout(() => { fn(time); (window as unknown as { lateFrames: number }).lateFrames++; }, 6500); });
   });
-  await page.getByRole("button", { name: "Contents", exact: true }).click();
+  await selectReaderAction(page, "Contents");
   await page.getByRole("dialog").getByRole("button", { name: "Coming home", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
   expect((await room.position()).cfi).toBe(before.cfi);

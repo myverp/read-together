@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { epub } from "./epub";
 
@@ -35,7 +36,9 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
     document.dispatchEvent(new Event("visibilitychange"));
     window.dispatchEvent(new Event("online"));
   });
+  await selectReaderAction(page, "Room details");
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(injected).toBe(2);
   expect(joins).toHaveLength(3);
   expect(joins[1] - joins[0]).toBeGreaterThanOrEqual(900);
@@ -49,8 +52,12 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
     await second.goto(baseURL!);
     await second.getByLabel("Room code").fill(code);
     await second.getByRole("button", { name: "Join / reopen room" }).click();
+    await selectReaderAction(second, "Room details");
     await expect(second.getByText("Live", { exact: true })).toBeVisible();
+    await second.keyboard.press("Escape");
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("· online", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     // Fail the normal, debounced track path after the connection was healthy.
     const before = joins.length;
     failures = 1;
@@ -60,7 +67,9 @@ test("Presence track errors explicitly rejoin once, back off, and recover Live",
       window.dispatchEvent(new Event("online"));
       document.dispatchEvent(new Event("visibilitychange"));
     });
+    await selectReaderAction(page, "Room details");
     await expect(page.getByText("Live", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     expect(injected).toBe(3);
     expect(joins.length - before).toBe(1);
     const local = await page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`)!).cfi, code);

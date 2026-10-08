@@ -1,17 +1,18 @@
+import { selectReaderAction, waitForSync } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { openReader, expectPassageInView } from "./reader-fixture";
 
 const KEY = "read-together:reading-settings:v1";
 test("settings preserve CFI and Done through font, theme, rotation, exit and refresh", async ({ page, request }) => {
   const room = await openReader(page, "nested");
-  await page.getByRole("button", { name: "Contents", exact: true }).click();
+  await selectReaderAction(page, "Contents");
   await page.getByRole("dialog").getByRole("button", { name: /<b>River passage/ }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
   await page.getByRole("button", { name: "Done here", exact: true }).click();
   const before = await room.position();
-  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
-  const trigger = page.getByRole("button", { name: "Reading settings", exact: true });
-  await trigger.click();
+  await waitForSync(page);
+  const trigger = page.getByRole("button", { name: "Reader menu", exact: true });
+  await selectReaderAction(page, "Reading settings");
   const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
   for (const size of [16,28,18]) {
     await dialog.getByLabel("Text size").selectOption(String(size));
@@ -20,7 +21,7 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
     expect((await room.position()).cfi).toBe(before.cfi); expect((await room.position()).done).toBe(true);
     await dialog.getByRole("button", { name: "Close reading settings" }).click();
     await expectPassageInView(page);
-    await trigger.click();
+    await selectReaderAction(page, "Reading settings");
   }
   for (const theme of ["Dark", "Sepia", "Light"]) {
     await dialog.getByRole("radio", { name: theme, exact: true }).check();
@@ -28,9 +29,9 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
     await expect(page.locator(".reader")).toHaveAttribute("data-reading-theme", theme.toLowerCase());
   }
   await dialog.getByRole("radio", { name: "Sepia", exact: true }).check(); await expect(dialog.getByLabel("Text size")).toBeEnabled();
-  await expect(page.locator("#reader-details")).toHaveCSS("background-color", "rgb(233, 223, 199)");
+  await expect(page.getByRole("dialog", { name: "Reading settings", exact: true })).toHaveCSS("background-color", "rgb(244, 236, 216)");
   await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
-  await trigger.click();
+  await selectReaderAction(page, "Reading settings");
   await page.evaluate(() => { const frame = requestAnimationFrame.bind(window); window.requestAnimationFrame = fn => frame(time => { setTimeout(() => fn(time),400); }); });
   await dialog.getByLabel("Text size").selectOption("28");
   await dialog.getByRole("button", { name: "Close reading settings" }).click();
@@ -38,18 +39,18 @@ test("settings preserve CFI and Done through font, theme, rotation, exit and ref
   await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeEnabled();
   await room.reopen(); expect((await room.position()).cfi).toBe(before.cfi); expect((await room.position()).done).toBe(true);
   await expect(page.locator(".reader")).toHaveAttribute("data-reading-theme", "sepia");
-  await page.reload(); await expect(page.getByRole("button", { name: "Reading settings", exact: true })).toBeEnabled();
+  await page.reload(); await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
   expect((await room.position()).cfi).toBe(before.cfi);
   const response = await request.get(`/api/rooms/${room.code}/state`, { headers: room.headers }); expect(response.ok()).toBeTruthy();
   expect((await response.json()).me.cfi).toBe(before.cfi);
-  await trigger.click(); await expect(dialog.getByLabel("Text size")).toHaveValue("28");
+  await selectReaderAction(page, "Reading settings"); await expect(dialog.getByLabel("Text size")).toHaveValue("28");
   await dialog.getByRole("button", { name: "Reset", exact: true }).click(); await expect(dialog.getByLabel("Text size")).toBeEnabled();
   await expect(dialog.getByLabel("Text size")).toHaveValue("18"); await expect(dialog.getByRole("radio", { name: "Light", exact: true })).toBeChecked();
   await dialog.getByRole("button", { name: "Close reading settings" }).click();
   for (const width of [320,390,768,1280]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(trigger).toBeEnabled();
-    expect(await page.locator(".reader-toolbar button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
+    expect(await page.locator(".reader-controls button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
@@ -64,7 +65,7 @@ test("personal settings cross books, stay independent of partner, and storage fa
     await partner.goto(baseURL!); await partner.getByLabel("Room code").fill(room.code);
     await partner.getByRole("button", { name: "Join / reopen room" }).click();
     await expect(partner.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
-    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    await selectReaderAction(page, "Reading settings");
     await page.getByLabel("Text size").selectOption("28"); await expect(page.getByLabel("Text size")).toBeEnabled();
     await page.getByRole("radio", { name: "Dark", exact: true }).check(); await expect(page.getByLabel("Text size")).toBeEnabled();
     await expect(partner.locator(".reader")).toHaveAttribute("data-reading-theme", "light");
@@ -77,7 +78,7 @@ test("personal settings cross books, stay independent of partner, and storage fa
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = function(name,value) { if(name === key) throw new Error("Settings storage blocked"); return original.call(this,name,value); };
     }, KEY);
-    await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+    await selectReaderAction(page, "Reading settings");
     await page.getByRole("radio", { name: "Sepia", exact: true }).check(); await expect(page.getByLabel("Text size")).toBeEnabled();
     await expect(page.getByText("Settings work for this session, but cannot be saved on this device.")).toBeVisible();
     await expect(page.locator(".reader")).toHaveAttribute("data-reading-theme", "sepia");
@@ -86,7 +87,7 @@ test("personal settings cross books, stay independent of partner, and storage fa
 
 test("author styles remain readable without changing emphasis or SVG; fixed layout disables text sizing", async ({ page }) => {
   await openReader(page, "normal", "styled");
-  await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+  await selectReaderAction(page, "Reading settings");
   await page.getByLabel("Text size").selectOption("28"); await expect(page.getByLabel("Text size")).toBeEnabled();
   await page.getByRole("radio", { name: "Dark", exact: true }).check(); await expect(page.getByLabel("Text size")).toBeEnabled();
   const frame = page.frameLocator(".book-view iframe");
@@ -102,14 +103,14 @@ test("author styles remain readable without changing emphasis or SVG; fixed layo
   await page.getByRole("button", { name: "Close reading settings" }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
   await openReader(page, "normal", "fixed");
-  await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+  await selectReaderAction(page, "Reading settings");
   await expect(page.getByLabel("Text size")).toBeDisabled();
   await expect(page.getByText("This fixed-layout book does not support changing text size.")).toBeVisible();
 });
 
 test("reflow timeout rolls back settings and ignores late frames before a successful retry", async ({ page }) => {
   const room = await openReader(page); const before = await room.position();
-  await page.getByRole("button", { name: "Reading settings", exact: true }).click();
+  await selectReaderAction(page, "Reading settings");
   await page.evaluate(() => {
     const frame = requestAnimationFrame.bind(window);
     (window as unknown as { originalFrame: typeof requestAnimationFrame }).originalFrame = frame;

@@ -1,3 +1,4 @@
+import { selectReaderAction, openReaderMenu } from "./reader-menu";
 import { test, expect, type Page } from '@playwright/test';
 import { epub } from './epub';
 import { applyReadingSettings } from './reader-fixture';
@@ -58,8 +59,10 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(page.getByRole('toolbar', { name: 'Drawing tools' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Contents', exact: true })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Reading settings', exact: true })).toBeDisabled();
+    await openReaderMenu(page);
+    await expect(page.getByRole('menuitem', { name: 'Contents', exact: true })).toBeDisabled();
+    await expect(page.getByRole('menuitem', { name: 'Reading settings', exact: true })).toBeDisabled();
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Cancel' }).click();
     expect((await state(page, code)).items).toHaveLength(0);
     await page.getByRole('button', { name: 'Draw on page' }).click();
@@ -95,7 +98,7 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(partner.getByRole('button', { name: 'Draw on page' })).toBeEnabled();
     const partnerCfi = () => partner.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:2`) || 'null')?.cfi, code);
     const ownerCfi = await page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`) || 'null')?.cfi, code);
-    await partner.getByRole('button', { name: 'Jump to partner' }).click();
+    await selectReaderAction(partner, "Partner");
     await expect.poll(partnerCfi).toBe(ownerCfi);
     await findDrawing(partner, code);
     await partner.getByRole('button', { name: 'Hide drawings' }).click();

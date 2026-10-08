@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect } from "@playwright/test";
 import { epub } from "./epub";
 import { applyReadingSettings } from "./reader-fixture";
@@ -17,8 +18,10 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
   await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Audio test.epub", mimeType: "application/epub+zip", buffer: await epub() });
   await page.getByRole("button", { name: "Upload & create room" }).click();
-  await expect(page.getByRole("button", { name: "Listen to page" })).toBeEnabled();
+  await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
+  await selectReaderAction(page, "Room details");
   await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   const captured: string[] = [];
   let fail = false;
   await page.route("**/api/rooms/*/speech", async route => {
@@ -29,7 +32,7 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
     if (fail) return route.fulfill({ status: 429, json: { error: "ElevenLabs quota or request limit reached. Check your plan or try later." } });
     await route.fulfill({ contentType: "audio/wav", body: wav() });
   });
-  await page.getByRole("button", { name: "Listen to page" }).click();
+  await selectReaderAction(page, "Listen");
   await page.getByLabel("Mode").selectOption("elevenlabs");
   await page.getByLabel("ElevenLabs API key").fill("test-key-not-a-real-secret");
   await page.getByRole("button", { name: "Load voices" }).click();
@@ -58,11 +61,11 @@ test("page audio uses page boundaries, plays, cancels, remembers voice and forge
   await page.getByRole("button", { name: "Close audio" }).click();
   await expect(player).toHaveCount(0);
   await page.getByRole("button", { name: "Next page" }).click();
-  await expect(page.getByRole("button", { name: "Listen to page" })).toBeEnabled();
+  await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
   await applyReadingSettings(page);
   expect(captured).toHaveLength(1);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Listen to page" }).click();
+  await selectReaderAction(page, "Listen");
   await expect(page.getByLabel("Voice", { exact: true })).toHaveValue("testVoice");
   const shownCharacters = await page.getByRole("dialog").getByText(/^[\d,]+ characters$/).innerText();
   fail = true;
@@ -104,7 +107,7 @@ test("device voice plays, pauses, continues with epub.js, stops on navigation, a
   await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
   await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Device.epub", mimeType: "application/epub+zip", buffer: await epub() });
   await page.getByRole("button", { name: "Upload & create room" }).click();
-  await page.getByRole("button", { name: "Listen to page" }).click();
+  await selectReaderAction(page, "Listen");
   await expect(page.getByLabel("Mode")).toHaveValue("device");
   await page.getByLabel("Voice", { exact: true }).selectOption({ label: "Device test voice · en-US" });
   await page.getByLabel("Speed").selectOption("1.25");
@@ -131,7 +134,7 @@ test("device voice offers ElevenLabs when speech synthesis is unavailable", asyn
   await expect(page.getByLabel("Choose an EPUB")).toBeEnabled();
   await page.getByLabel("Choose an EPUB").setInputFiles({ name: "Unsupported.epub", mimeType: "application/epub+zip", buffer: await epub() });
   await page.getByRole("button", { name: "Upload & create room" }).click();
-  await page.getByRole("button", { name: "Listen to page" }).click();
+  await selectReaderAction(page, "Listen");
   await expect(page.getByText("This browser does not support Device voice. Try ElevenLabs instead.")).toBeVisible();
   await page.getByLabel("Mode").selectOption("elevenlabs");
   await expect(page.getByLabel("ElevenLabs API key")).toBeVisible();
