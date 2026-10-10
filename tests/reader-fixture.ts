@@ -22,10 +22,6 @@ export async function openReader(page: Page, navigation: Parameters<typeof epub>
   const client = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false } });
   const email = `reader-${randomUUID()}@example.test`, password = randomBytes(32).toString("hex"), token = randomBytes(32).toString("hex");
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true }); if (created.error) throw created.error;
-  // The home profile request and room upload both ensure a profile. Provision
-  // this fixture before browser requests so layout tests do not race those inserts.
-  const profile = await admin.from("profiles").insert({ user_id: created.data.user!.id, name: "Reader test" });
-  if (profile.error) throw profile.error;
   const signed = await client.auth.signInWithPassword({ email, password }); if (signed.error) throw signed.error;
   const session = signed.data.session!;
   await page.addInitScript(({ session, token }) => { localStorage.setItem("sb-127-auth-token", JSON.stringify(session)); localStorage.setItem("read-together:token", token); }, { session, token });

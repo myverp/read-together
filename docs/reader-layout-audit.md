@@ -37,9 +37,11 @@ real click in the new iframe and verifies that the saved reading position matche
 - The hosted CI selection now contains 72 cases: 71 runnable plus the existing
   Chromium-CDP-only touch case skipped in WebKit. Hosted results belong to the
   audit PR's exact commit and must be green before merge.
-- Physical phones/Safari, assistive-technology devices, and real provider/device
-  audio playback remain unverified. Browser emulation and audio fixtures are not
-  evidence for those boundaries.
-- The previously reproduced concurrent profile-creation race is recorded in
-  Linear BLA-27. It is an existing backend issue outside this layout correction;
-  no backend or production data was changed by this audit.
+- On 2026-10-10 the owner reported completing physical-device and audio checks
+  successfully. Device/browser versions and individual audio providers were not
+  supplied; this is owner-reported acceptance, separate from automated evidence.
+  Assistive-technology testing was not reported.
+- The concurrent profile-creation race recorded in BLA-27 is addressed by the
+  BLA-28 release-hardening follow-up: conflict-safe insertion preserves an existing
+  profile, with concurrent API coverage. Reader fixtures no longer pre-create a
+  profile to avoid the race. The layout audit itself changed no backend/schema.

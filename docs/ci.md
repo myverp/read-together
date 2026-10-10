@@ -21,7 +21,7 @@ The reader layout suite additionally covers menu order, keyboard/outside dismiss
 
 `npm run test:integration` starts the production application, runs the test files serially, then stops the application:
 
-- `checks/profile-security.test.mjs`: guest-to-profile linking, two-seat limit, account ownership, device takeover, stale-device rejection, color races, annotation ownership, private EPUB access, and denied direct browser table access.
+- `checks/profile-security.test.mjs`: concurrent first profile reads/edits without overwriting preferences, guest-to-profile linking, two-seat limit, account ownership, device takeover, stale-device rejection, color races, annotation ownership, private EPUB access, and denied direct browser table access.
 - `checks/drawing-security.test.mjs`: admitted readers only, drawing ownership, idempotent retries, bounded payloads, concurrent writers, device control, and denied direct table access.
 - `checks/upload-maintenance.test.mjs`: concurrent HTTP requests cannot pass the ten-room browser cap; hourly/daily network counters admit only the remaining slot; concurrent 25 MiB reservations cannot exceed 500 MiB; deleting a reservation restores capacity; uploaded bytes replace their reservation; unauthorized maintenance cannot mutate data; authorized maintenance deletes stale unfinished room files and rows, preserves completed/recent rooms, and prunes old counters.
 

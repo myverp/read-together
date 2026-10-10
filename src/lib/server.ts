@@ -61,9 +61,15 @@ export async function ensureProfile(who: Identity) {
   if (error) throw error;
   if (existing) return existing;
   const fallback = (who.user.email?.split("@")[0] || "Reader").replace(/[^\p{L}\p{N} _.-]/gu, "").slice(0, 40) || "Reader";
-  const { data, error: insertError } = await db.from("profiles").insert({ user_id: who.userId, name: fallback }).select("*").single();
+  // Another request can create (and customize) this profile after our read.
+  // Ignore that conflict instead of overwriting its preferences with defaults.
+  const { data, error: insertError } = await db.from("profiles")
+    .upsert({ user_id: who.userId, name: fallback }, { onConflict: "user_id", ignoreDuplicates: true }).select("*").maybeSingle();
   if (insertError) throw insertError;
-  return data;
+  if (data) return data;
+  const { data: concurrent, error: readError } = await db.from("profiles").select("*").eq("user_id", who.userId).single();
+  if (readError) throw readError;
+  return concurrent;
 }
 
 export function fail(error: unknown, context: ErrorContext = { operation: "room-operation", route: "server" }) {
