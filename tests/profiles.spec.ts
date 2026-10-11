@@ -1,3 +1,4 @@
+import { selectReaderAction } from "./reader-menu";
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { epub } from "./epub";
 
@@ -19,6 +20,7 @@ async function latestOtp(request: APIRequestContext, email: string, previousIds:
 async function signIn(page: Page, request: APIRequestContext, email: string) {
   const previous = await (await request.get(mailMessages)).json() as { messages?: MailMessage[] };
   const previousIds = (previous.messages || []).map(message => message.ID || "");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Email me a code" }).click();
   const otp = await latestOtp(request, email, previousIds);
@@ -48,9 +50,11 @@ test("email profile links a guest room, customizes it, and requires explicit dev
   await expect(page.getByText("1 room linked.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "My rooms" })).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`Profile room.*${roomCode}`) }).click();
+  await selectReaderAction(page, "Room details");
   await expect(page.getByText(/p\. 2/).first()).toBeVisible();
   await page.getByRole("button", { name: "Use color 5 in this room" }).click();
   await expect(page.getByRole("button", { name: "Use color 5 in this room" })).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Exit", exact: true }).click();
 
   const secondContext = await browser.newContext({ ...testInfo.project.use, baseURL });
@@ -81,7 +85,7 @@ test("email profile links a guest room, customizes it, and requires explicit dev
     await expect(second.getByRole("button", { name: "Continue here" })).toBeDisabled();
     await expect(second.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
     expect(takeoverAttempts).toBe(3);
-    await expect(page.locator(".connection")).toHaveText("Continued on another device", { timeout: 10000 });
+    await expect(page.locator(".taken-over")).toContainText("Continued on another device", { timeout: 10000 });
     await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
   } finally { await secondContext.close(); }
 });

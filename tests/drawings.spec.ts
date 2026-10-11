@@ -1,5 +1,7 @@
+import { selectReaderAction, openReaderMenu } from "./reader-menu";
 import { test, expect, type Page } from '@playwright/test';
 import { epub } from './epub';
+import { applyReadingSettings } from './reader-fixture';
 
 async function state(page: Page, code: string) {
   return page.evaluate(async code => {
@@ -16,13 +18,23 @@ async function stroke(page: Page) {
   await page.mouse.move(bounds.x + bounds.width * .62, bounds.y + bounds.height * .55, { steps: 8 });
   await page.mouse.up();
 }
-async function findDrawing(page: Page) {
-  for (let i = 0; i < 8; i++) {
-    await page.locator('.saved-drawing-stroke').first().waitFor({ state: 'visible', timeout: 1250 }).catch(() => {});
-    if (await page.locator('.saved-drawing-stroke').count()) break;
-    await page.getByRole('button', { name: 'Next page' }).click();
+async function findDrawing(page: Page, code: string) {
+  const stroke = page.locator('.saved-drawing-stroke').first();
+  const cfi = () => page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:2`) || 'null')?.cfi, code);
+  // Reflow can briefly render the old page while EPUB recalculates columns.
+  // Search nearby pages both ways and verify each turn committed.
+  for (const direction of ['Next page', 'Previous page']) {
+    for (let i = 0; i < 8; i++) {
+      await stroke.waitFor({ state: 'visible', timeout: 1250 }).catch(() => {});
+      if (await stroke.isVisible()) return;
+      const button = page.getByRole('button', { name: direction });
+      if (!(await button.isEnabled())) break;
+      const before = await cfi();
+      await button.click();
+      await expect.poll(cfi).not.toBe(before);
+    }
   }
-  await expect(page.locator('.saved-drawing-stroke').first()).toBeVisible();
+  await expect(stroke).toBeVisible();
 }
 
 test('a drawing persists, follows its chapter, opens a frozen page, and stays owner controlled', async ({ page, browser, baseURL }, testInfo) => {
@@ -47,6 +59,10 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(page.getByRole('toolbar', { name: 'Drawing tools' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    await openReaderMenu(page);
+    await expect(page.getByRole('menuitem', { name: 'Contents', exact: true })).toBeDisabled();
+    await expect(page.getByRole('menuitem', { name: 'Reading settings', exact: true })).toBeDisabled();
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Cancel' }).click();
     expect((await state(page, code)).items).toHaveLength(0);
     await page.getByRole('button', { name: 'Draw on page' }).click();
@@ -73,31 +89,46 @@ test('a drawing persists, follows its chapter, opens a frozen page, and stays ow
     await expect(partner.locator('.saved-drawing-stroke').first()).toBeVisible();
     await partner.screenshot({ path: testInfo.outputPath('drawing-overlay.png') });
     await partner.setViewportSize({ width: 320, height: 700 });
-    await findDrawing(partner);
+    await findDrawing(partner, code);
     expect(await partner.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await partner.screenshot({ path: testInfo.outputPath('drawing-320.png') });
-    await partner.reload();
     const loadedDrawings = partner.waitForResponse(response => response.url().endsWith(`/api/rooms/${code}/drawings`) && response.request().method() === 'GET');
-    await partner.getByRole('button', { name: 'Join / reopen room' }).click();
+    await partner.reload();
     await loadedDrawings;
     await expect(partner.getByRole('button', { name: 'Draw on page' })).toBeEnabled();
-    await partner.getByRole('button', { name: 'Jump to partner' }).click();
-    await findDrawing(partner);
+    const partnerCfi = () => partner.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:2`) || 'null')?.cfi, code);
+    const ownerCfi = await page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`) || 'null')?.cfi, code);
+    await selectReaderAction(partner, "Partner");
+    await expect.poll(partnerCfi).toBe(ownerCfi);
+    await findDrawing(partner, code);
     await partner.getByRole('button', { name: 'Hide drawings' }).click();
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);
     await partner.getByRole('button', { name: 'Show drawings' }).click();
     await expect(partner.locator('.saved-drawing-stroke').first()).toBeVisible();
+    const beforeReflow = await partnerCfi();
+    await applyReadingSettings(partner);
+    expect(await partnerCfi()).toBe(beforeReflow);
+    expect((await state(page, code)).items).toEqual(saved);
+    await expect(page.locator('.reader')).toHaveAttribute('data-reading-theme', 'light');
+    await findDrawing(partner, code);
     await partner.locator('.drawing-overlay g[role="button"]').first().focus();
     await partner.keyboard.press('Enter');
     await expect(partner.getByRole('dialog', { name: 'Original drawing page' })).toBeVisible();
     await expect(partner.getByRole('dialog').locator('text')).not.toHaveCount(0);
+    await expect(partner.locator('.drawing-original')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await partner.screenshot({ path: testInfo.outputPath('drawing-original.png') });
     await expect(partner.getByRole('button', { name: 'Delete my drawing' })).toHaveCount(0);
     await partner.getByRole('button', { name: 'Close original page' }).click();
+    await applyReadingSettings(partner, 18, 'Light');
     await partner.getByRole('button', { name: 'Next page' }).click();
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);
-    for (let i = 0; i < 35 && await partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' }).count() === 0; i++) {
+    // At 320px the wrapped toolbar and platform fonts can make this fixture's
+    // first chapter exceed 35 screens. Wait for each saved location; the target
+    // chapter and drawing absence below remain the actual assertions.
+    for (let i = 0; i < 80 && await partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' }).count() === 0; i++) {
+      const before = await partnerCfi();
       await partner.getByRole('button', { name: 'Next page' }).click();
+      await expect.poll(partnerCfi).not.toBe(before);
     }
     await expect(partner.frameLocator('.book-view iframe').locator('h1', { hasText: 'Coming home' })).toHaveCount(1);
     await expect(partner.locator('.saved-drawing-stroke')).toHaveCount(0);

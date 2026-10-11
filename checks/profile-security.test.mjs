@@ -45,9 +45,19 @@ test('real local profiles preserve seats, deny stale devices, and serialize room
 
     const first = await account(); first.device = guest.device;
     const second = await account(), third = await account();
-    assert.equal((await request(first, '/api/profile')).status, 200);
-    const preferred = await request(first, '/api/profile', 'PATCH', { name: 'First reader', avatar: 'leaf', preferredColor: 4 });
-    assert.equal(preferred.status, 200);
+    const concurrentProfiles = await Promise.all([
+      request(first, '/api/profile', 'PATCH', { name: 'First reader', avatar: 'leaf', preferredColor: 4 }),
+      ...Array.from({ length: 8 }, () => request(first, '/api/profile')),
+    ]);
+    assert.deepEqual(concurrentProfiles.map(result => result.status), Array(9).fill(200), 'concurrent first requests must all obtain the same profile');
+    assert.equal(new Set(concurrentProfiles.map(result => result.body.profile.userId)).size, 1);
+    const profileReads = await Promise.all(Array.from({ length: 4 }, () => request(first, '/api/profile')));
+    for (const result of profileReads) {
+      assert.equal(result.status, 200);
+      assert.equal(result.body.profile.name, 'First reader');
+      assert.equal(result.body.profile.avatar, 'leaf');
+      assert.equal(result.body.profile.preferredColor, 4);
+    }
     const position = { cfi: 'epubcfi(/6/2!/4/2/1:5)', section: 'Saved passage', done: true };
     const linked = await request(first, '/api/profile/link', 'POST', { rooms: [{ code: roomCode, position }] });
     assert.equal(linked.status, 200, JSON.stringify(linked.body));
