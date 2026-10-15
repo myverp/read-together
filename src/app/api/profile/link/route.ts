@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     for (const { code, position } of entries) {
       const { data: room, error } = await db.from("reading_rooms").select("*").eq("code", code).maybeSingle();
       if (error) throw error;
-      if (!room) { skipped.push({ code, reason: "Room not found" }); continue; }
+      if (!room || room.deletion_requested_at) { skipped.push({ code, reason: "Room not found" }); continue; }
       const seat = !room.reader_one_user && room.reader_one === who.guestHash ? 1
         : !room.reader_two_user && room.reader_two === who.guestHash ? 2 : null;
       if (!seat) { skipped.push({ code, reason: "This browser does not own an unlinked seat" }); continue; }

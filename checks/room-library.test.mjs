@@ -28,7 +28,7 @@ test('room library checks membership without admission or device control and pre
     const listed = await request(guest, '/api/rooms/library', 'POST', { codes: [code] });
     assert.equal(listed.status, 200); assert.equal(listed.cache, 'no-store');
     assert.equal(listed.body.rooms[0].section, 'Saved chapter'); assert.equal(listed.body.rooms[0].linked, false);
-    assert.deepEqual(Object.keys(listed.body.rooms[0]).sort(), ['archivedAt', 'code', 'createdAt', 'lastOpenedAt', 'linked', 'seat', 'section', 'title'].sort());
+    assert.deepEqual(Object.keys(listed.body.rooms[0]).sort(), ['archivedAt', 'code', 'createdAt', 'deleting', 'lastOpenedAt', 'linked', 'seat', 'section', 'title'].sort());
     assert.deepEqual(await read(code), before, 'listing must not change seats, controls, timestamps, positions or annotations');
     const denied = await request(stranger, '/api/rooms/library', 'POST', { codes: [code] });
     assert.deepEqual(denied.body, { rooms: [], unavailable: [code] });

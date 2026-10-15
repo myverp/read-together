@@ -1,4 +1,4 @@
-import { admin, fail, HttpError, identity, seatFor } from "@/lib/server";
+import { admin, fail, HttpError, identity, requireAvailableRoom, seatFor } from "@/lib/server";
 export async function PATCH(request: Request, context: { params: Promise<{ code: string }> }) {
   try {
     const who = await identity(request); const { code } = await context.params;
@@ -6,8 +6,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
     const body = await request.json();
     if (typeof body.archived !== "boolean") throw new HttpError("Choose archive or restore.");
     const db = admin();
-    const { data: room, error } = await db.from("reading_rooms").select("reader_one,reader_two,reader_one_user,reader_two_user,ready,cleanup_started_at").eq("code", code).maybeSingle();
+    const { data: room, error } = await db.from("reading_rooms").select("reader_one,reader_two,reader_one_user,reader_two_user,ready,cleanup_started_at,deletion_requested_at").eq("code", code).maybeSingle();
     if (error) throw error;
+    if (room?.deletion_requested_at) requireAvailableRoom(room);
     const seat = room && seatFor(room, who);
     if (!room || !seat || !room.ready || room.cleanup_started_at) throw new HttpError("This room is unavailable for this reader.", 404);
     const column = seat === 1 ? "archived_at_one" : "archived_at_two";
