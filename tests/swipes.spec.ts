@@ -21,6 +21,8 @@ test('swipes match buttons and reject short, vertical, multitouch, long press, s
  await page.getByLabel('Choose an EPUB').setInputFiles({name:'Swipe.epub',mimeType:'application/epub+zip',buffer:await epub()});
  await page.getByRole('button',{name:'Upload & create room'}).click();
  await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
+ // Navigation buttons can enable before the first relocated position is persisted.
+ await expect.poll(()=>pos(page)).toMatch(/^epubcfi\(/);
  const first=await pos(page);
  await page.getByRole('button',{name:'Next page'}).click();
  await expect.poll(()=>pos(page)).not.toBe(first); const next=await pos(page);
@@ -58,6 +60,8 @@ test('Chromium native touch delivery turns the iframe page once',async({page,con
  await page.getByLabel('Choose an EPUB').setInputFiles({name:'Native swipe.epub',mimeType:'application/epub+zip',buffer:await epub()});
  await page.getByRole('button',{name:'Upload & create room'}).click();
  await expect(page.getByRole('button',{name:'Next page'})).toBeEnabled();
+ // Navigation buttons can enable before the first relocated position is persisted.
+ await expect.poll(()=>pos(page)).toMatch(/^epubcfi\(/);
  const first=await pos(page);
  await page.getByRole('button',{name:'Next page'}).click();await expect.poll(()=>pos(page)).not.toBe(first);const next=await pos(page);
  await page.getByRole('button',{name:'Previous page'}).click();await expect.poll(()=>pos(page)).toBe(first);
