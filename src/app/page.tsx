@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { readerToken } from "@/lib/client";
 import { createBookRoom, type BookCreation } from "@/lib/create-book-room";
 import AccountPanel from "@/components/AccountPanel";
-import { lastRoom } from "@/lib/room-history";
+import RoomLibrary from "@/components/RoomLibrary";
 import { ROOM_CODE, invitationCode, requestRoomEntry, roomPath, takeExitWarning } from "@/lib/room-invitation";
 
 export default function Home() {
@@ -14,7 +14,6 @@ export default function Home() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [errorArea, setErrorArea] = useState("storage");
-  const [recent, setRecent] = useState<{ code: string; title?: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const inviteInput = useRef<HTMLInputElement>(null);
   const [ready, setReady] = useState(false);
@@ -29,7 +28,6 @@ export default function Home() {
     setExitWarning(takeExitWarning());
     try {
       readerToken();
-      setRecent(lastRoom(localStorage));
       setReady(true);
       const demo = localStorage.getItem("read-together:demo") || "";
       if (ROOM_CODE.test(demo)) setDemoCode(demo);
@@ -86,7 +84,7 @@ export default function Home() {
       {demoCode && <button className="text-button" disabled={!!busy} onClick={() => { demoAttempt.current = null; void create(true); }}>Start another demo</button>}
       {error && errorArea === "demo" && <p className="error" role="alert">{error}</p>}
     </header>
-    {recent && <section className="panel continue-panel"><div><h2>Continue reading</h2><p>{recent.title || "Your last room on this browser"}</p></div><button className="secondary" disabled={!!busy} onClick={() => void enter(recent.code)}>Continue reading</button></section>}
+    {ready && <RoomLibrary disabled={!!busy} onOpenRoom={enter} />}
     {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {error && errorArea === "storage" && <p className="error" role="alert">{error}</p>}
     {busy && <section className="panel creation-status"><p role="status">{busy}</p><button className="secondary" onClick={() => { creation.current?.abort(); setBusy("Cancelling… an active transfer may still finish."); }}>Cancel creation</button></section>}
@@ -103,6 +101,6 @@ export default function Home() {
       <button disabled={!code.trim() || !!busy}>Join / reopen room</button>
       {error && errorArea === "invite" && <p className="error" role="alert">{error}</p>}
     </form>
-    <AccountPanel onOpenRoom={async roomCode => { await enter(roomCode); }} />
+    <AccountPanel />
   </main>;
 }

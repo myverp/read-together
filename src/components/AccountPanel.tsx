@@ -2,22 +2,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { api, supabase } from "@/lib/client";
-import { AVATARS, EMPTY_POSITION, isPosition, type Avatar, type Profile, type RoomSummary } from "@/lib/types";
+import { AVATARS, EMPTY_POSITION, isPosition, type Avatar, type Profile } from "@/lib/types";
 import { HIGHLIGHT_COLORS } from "@/lib/highlights";
 import { savedRooms } from "@/lib/room-history";
 
 const AVATAR_LABELS: Record<Avatar, string> = { book: "📖", leaf: "🌿", moon: "🌙", star: "★", tea: "☕" };
 
-export default function AccountPanel({ onOpenRoom, initiallyOpen = false }: { onOpenRoom: (code: string) => Promise<void>; initiallyOpen?: boolean }) {
+export default function AccountPanel({ initiallyOpen = false }: { initiallyOpen?: boolean }) {
   const [signInOpen, setSignInOpen] = useState(initiallyOpen);
   const pending = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState(""); const [code, setCode] = useState("");
   const [sent, setSent] = useState(false); const [busy, setBusy] = useState(""); const [message, setMessage] = useState("");
-  const [profile, setProfile] = useState<Profile | null>(null); const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   const refresh = useCallback(async () => {
-    try { const data = await api<{ profile: Profile; rooms: RoomSummary[] }>("/api/profile", undefined, "GET"); setProfile(data.profile); setRooms(data.rooms); setMessage(""); }
+    try { const data = await api<{ profile: Profile }>("/api/profile", undefined, "GET"); setProfile(data.profile); setMessage(""); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not load profile."); }
   }, []);
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function AccountPanel({ onOpenRoom, initiallyOpen = false }: { on
     const { data } = supabase().auth.onAuthStateChange((_event, next) => setSession(next));
     return () => data.subscription.unsubscribe();
   }, []);
-  useEffect(() => { if (session) void refresh(); else { setProfile(null); setRooms([]); } }, [session, refresh]);
+  useEffect(() => { if (session) void refresh(); else { setProfile(null); } }, [session, refresh]);
 
   async function requestCode() {
     if (pending.current) return; pending.current = true;
@@ -55,12 +55,18 @@ export default function AccountPanel({ onOpenRoom, initiallyOpen = false }: { on
     setBusy("Linking rooms…");
     try {
       const saved = savedRooms(localStorage);
+      if (!saved.length) throw new Error("There are no browser rooms to link.");
       const entries = saved.map(room => {
         let position = EMPTY_POSITION;
         try { const value = JSON.parse(localStorage.getItem(`read-together:${room.code}:${room.seat}`) || "null"); if (isPosition(value)) position = value; } catch { /* Keep empty position. */ }
         return { code: room.code, position };
       });
-      const result = await api<{ linked: string[]; skipped: { code: string; reason: string }[] }>("/api/profile/link", { rooms: entries });
+      const result = { linked: [] as string[], skipped: [] as { code: string; reason: string }[] };
+      for (let start = 0; start < entries.length; start += 50) {
+        const batch = await api<typeof result>("/api/profile/link", { rooms: entries.slice(start, start + 50) });
+        result.linked.push(...batch.linked); result.skipped.push(...batch.skipped);
+      }
+      window.dispatchEvent(new Event("read-together:rooms-linked"));
       await refresh();
       setMessage(`${result.linked.length} room${result.linked.length === 1 ? "" : "s"} linked${result.skipped.length ? `; ${result.skipped.length} skipped safely` : ""}.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not link rooms."); }
@@ -89,6 +95,5 @@ export default function AccountPanel({ onOpenRoom, initiallyOpen = false }: { on
     <button className="secondary link-rooms" disabled={!!busy} onClick={() => void linkRooms()}>Link browser rooms</button>
     <p className="muted">Want these guest rooms on another device? Link them explicitly to this profile. Signing in alone keeps them on this browser.</p>
     {message && <p className={message.includes("saved") || message.includes("linked") ? "success" : "error"} role="status">{message}</p>}
-    {!!rooms.length && <div className="my-rooms"><h3>My rooms</h3>{rooms.map(room => <button className="room-row secondary" key={room.code} onClick={() => void onOpenRoom(room.code)}><span>{room.title}</span><small>{room.code}</small></button>)}</div>}
   </section>;
 }
