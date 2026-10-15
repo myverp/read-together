@@ -65,6 +65,16 @@ test('takeover takes precedence over revision conflicts; terminal auth needs man
 test('synchronous send failure still releases the active-write lock', async () => {
   let attempts = 0; const h = harness({ send: () => { attempts++; throw { status: 503 }; } }); h.queue.update(position(1)); await h.tick(); await h.tick(); assert.equal(attempts, 2); h.queue.stop();
 });
+
+test('deleted room stops every retry trigger without erasing unsynced local progress', async () => {
+  let unavailable = 0, attempts = 0;
+  const h = harness({ send: async () => { attempts++; throw { status: 410, details: { code: 'room_unavailable' } }; }, unavailable: () => unavailable++ });
+  h.queue.update(position(1)); await h.tick();
+  assert.equal(unavailable, 1); assert.equal(h.timers.size, 0);
+  assert.ok(h.local.at(-1), 'partner local pending is not falsely marked synced');
+  h.queue.retry(); h.queue.kick(); h.queue.update(position(2)); await settle();
+  assert.equal(attempts, 1);
+});
 test('legacy position stays readable; invalid pending and blocked/full storage are safe', () => {
   const values = new Map(); const storage = { getItem: key => values.get(key) ?? null, setItem: (key,value) => values.set(key,value), removeItem: key => values.delete(key) };
   const pending = { format: 1, position: position(2), revision: 3, controlVersion: 2 };

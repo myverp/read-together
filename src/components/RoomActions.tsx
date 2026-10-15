@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
-export default function RoomActions({ title, archived, disabled, onArchive }: {
-  title: string; archived: boolean; disabled: boolean; onArchive: () => void;
+export default function RoomActions({ title, archived, disabled, onArchive, onDelete, deleting = false }: {
+  title: string; archived: boolean; disabled: boolean; onArchive: () => void; onDelete?: () => void; deleting?: boolean;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
@@ -16,7 +16,8 @@ export default function RoomActions({ title, archived, disabled, onArchive }: {
   }}>
     <summary ref={trigger} aria-label={`Actions for ${title}`}>Actions</summary>
     <div className="room-actions-popover">
-      <button className="text-button" disabled={disabled} aria-label={`${archived ? "Restore" : "Archive"} ${title}`} onClick={() => { close(); onArchive(); }}>{archived ? "Restore" : "Archive"}</button>
+      <button className="text-button" disabled={disabled || deleting} aria-label={`${archived ? "Restore" : "Archive"} ${title}`} onClick={() => { close(); onArchive(); }}>{archived ? "Restore" : "Archive"}</button>
+      {onDelete && <button className="text-button" disabled={disabled} onClick={() => { close(); onDelete(); }}>{deleting ? "Retry deletion" : "Delete room"}</button>}
     </div>
   </details>;
 }

@@ -23,7 +23,7 @@ import { loadSettings, saveSettings, READING_PALETTES, type ReadingSettings } fr
 import { browserStorage } from "@/lib/local-progress";
 import { registerReadingThemes, themeName } from "@/lib/reader-themes";
 
-export default function Reader({ room, onExit }: { room: Room; onExit: (warning?: string) => void }) {
+export default function Reader({ room, onExit, onUnavailable }: { room: Room; onExit: (warning?: string) => void; onUnavailable: () => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -44,7 +44,8 @@ export default function Reader({ room, onExit }: { room: Room; onExit: (warning?
   const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
   const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
-  const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, flushProgress } = useRoom(room, refreshAnnotations);
+  const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, unavailable, flushProgress } = useRoom(room, refreshAnnotations);
+  useEffect(() => { if (unavailable) onUnavailable(); }, [unavailable, onUnavailable]);
   const [exiting, setExiting] = useState(false);
   const exitBusy = useRef(false);
   const [unsafeExit, setUnsafeExit] = useState(false);
