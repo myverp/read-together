@@ -41,7 +41,7 @@ type RoomSeatRow = {
   reader_one: string; reader_two: string | null; reader_one_user: string | null; reader_two_user: string | null;
   control_hash_one: string | null; control_hash_two: string | null; control_version_one: number; control_version_two: number;
 };
-export function seatFor(room: RoomSeatRow, who: Identity): 1 | 2 | null {
+export function seatFor(room: Pick<RoomSeatRow, "reader_one" | "reader_two" | "reader_one_user" | "reader_two_user">, who: Identity): 1 | 2 | null {
   if (who.userId && room.reader_one_user === who.userId) return 1;
   if (who.userId && room.reader_two_user === who.userId) return 2;
   if (!room.reader_one_user && room.reader_one === who.guestHash) return 1;

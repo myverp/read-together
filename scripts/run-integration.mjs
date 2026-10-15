@@ -15,7 +15,7 @@ try {
     await setTimeout(500);
   }
   if (!ready) throw new Error('Production server did not become ready within 30 seconds.');
-  const tests = spawn(process.execPath, ['--test', '--test-concurrency=1', 'checks/profile-security.test.mjs', 'checks/drawing-security.test.mjs', 'checks/upload-maintenance.test.mjs'], { stdio: 'inherit' });
+  const tests = spawn(process.execPath, ['--test', '--test-concurrency=1', 'checks/profile-security.test.mjs', 'checks/room-library.test.mjs', 'checks/drawing-security.test.mjs', 'checks/upload-maintenance.test.mjs'], { stdio: 'inherit' });
   const [code] = await once(tests, 'exit');
   process.exitCode = code ?? 1;
 } finally {

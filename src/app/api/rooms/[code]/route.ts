@@ -61,6 +61,10 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
       if (!ready) throw new HttpError("This unfinished room has expired. Create a new room.", 410);
       room = ready;
     }
-    return await roomResponse(room, seat);
+    const response = await roomResponse(room, seat);
+    const { error: openedError } = await db.from("reading_rooms").update({ [seat === 1 ? "last_opened_at_one" : "last_opened_at_two"]: new Date().toISOString() }).eq("code", code)
+      .eq(seat === 1 ? "reader_one" : "reader_two", seat === 1 ? room.reader_one : room.reader_two);
+    if (openedError) throw openedError;
+    return response;
   } catch (error) { return fail(error, { operation: "enter-room", route: "/api/rooms/[code]" }); }
 }
