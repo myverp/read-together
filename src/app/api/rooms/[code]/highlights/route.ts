@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
 import { admin, controlFor, fail, HttpError, identity, requireAvailableRoom, seatFor } from "@/lib/server";
-import { HIGHLIGHT_COLORS, isHighlightInput, type Highlight, type HighlightState } from "@/lib/highlights";
+import { HIGHLIGHT_COLORS, isHighlightInput, isHighlightEdit, type Highlight, type HighlightState } from "@/lib/highlights";
 
 type Context = { params: Promise<{ code: string }> };
 
@@ -17,6 +17,7 @@ async function handle(request: Request, context: Context) {
       if (text.length > 14000) throw new HttpError("This highlight is too long.", 413);
       try { input = JSON.parse(text); } catch { throw new HttpError("Invalid highlight."); }
       if (request.method === "POST" && !isHighlightInput(input)) throw new HttpError("Select up to 3,000 characters and keep comments under 1,000 characters.");
+      if (request.method === "PATCH" && !isHighlightEdit(input)) throw new HttpError("Choose a highlight and keep comments under 1,000 characters.");
       if (request.method === "DELETE" && (!input || typeof input !== "object" || !("id" in input) || typeof input.id !== "string")) throw new HttpError("Invalid highlight.");
     }
     const db = admin();
@@ -45,6 +46,15 @@ async function handle(request: Request, context: Context) {
         const mark: Highlight = { id: input.id, cfi: input.cfi, quote: input.quote.trim(), comment: input.comment.trim(), color, seat };
         next.items = [...state.items, mark];
         next.colors = colors;
+      } else if (request.method === "PATCH" && isHighlightEdit(input)) {
+        const existing = state.items.find(h => h.id === input.id);
+        if (!existing) throw new HttpError("This highlight was removed. Your draft has not been saved.", 404);
+        if (existing.seat !== seat) throw new HttpError("You can only edit your own comments.", 403);
+        const comment = input.comment.trim();
+        // A lost successful response can be retried without overwriting a newer edit.
+        if (existing.comment === comment) return result();
+        if (existing.comment !== input.previousComment) throw new HttpError("This comment changed elsewhere. Your draft is kept. Cancel editing to review the latest comment before trying again.", 409);
+        next.items = state.items.map(mark => mark.id === existing.id ? { ...mark, comment } : mark);
       } else {
         const id = (input as { id: string }).id;
         const existing = state.items.find(h => h.id === id);
@@ -56,6 +66,7 @@ async function handle(request: Request, context: Context) {
       let query = db.from("reading_rooms").update({ highlight_state: next })
         .eq("code", code).eq("highlight_state->>revision", String(state.revision));
       if (linked) query = query.eq(control.hashColumn, who.controlHash).eq(control.versionColumn, control.version);
+      else query = query.eq(seat === 1 ? "reader_one" : "reader_two", who.guestHash).is(seat === 1 ? "reader_one_user" : "reader_two_user", null);
       const { data: saved, error: updateError } = await query.select("code").maybeSingle();
       if (updateError) throw updateError;
       if (saved) return NextResponse.json({ revision: next.revision, items: next.items, colors: next.colors }, { headers: { "Cache-Control": "no-store" } });
@@ -66,4 +77,5 @@ async function handle(request: Request, context: Context) {
 
 export const GET = handle;
 export const POST = handle;
+export const PATCH = handle;
 export const DELETE = handle;
