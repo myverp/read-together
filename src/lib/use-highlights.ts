@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./client";
-import type { Highlight, HighlightSnapshot } from "./highlights";
+import type { Highlight, HighlightSnapshot, HighlightEdit } from "./highlights";
 
 export function useHighlights(code: string) {
   const [snapshot, setSnapshot] = useState<HighlightSnapshot>({ revision: -1, items: [] });
@@ -42,5 +42,9 @@ export function useHighlights(code: string) {
     const next = await api<HighlightSnapshot>(endpoint, { id }, "DELETE");
     accept(next);
   }
-  return { highlights: snapshot.items, colors: snapshot.colors, error, refresh, save, remove };
+  async function edit(input: HighlightEdit) {
+    const next = await api<HighlightSnapshot>(endpoint, input, "PATCH");
+    accept(next);
+  }
+  return { highlights: snapshot.items, loaded: snapshot.revision >= 0, colors: snapshot.colors, error, refresh, save, remove, edit };
 }

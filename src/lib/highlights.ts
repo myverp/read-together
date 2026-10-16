@@ -15,6 +15,15 @@ export type Highlight = {
 export type HighlightSnapshot = { revision: number; items: Highlight[]; colors?: number[] };
 export type HighlightState = HighlightSnapshot & { colors: number[] };
 
+export type HighlightEdit = { id: string; comment: string; previousComment: string };
+export function isHighlightEdit(value: unknown): value is HighlightEdit {
+  if (!value || typeof value !== "object") return false;
+  const input = value as HighlightEdit;
+  return typeof input.id === "string" && /^[a-f0-9-]{36}$/.test(input.id) &&
+    typeof input.comment === "string" && input.comment.length <= 1000 &&
+    typeof input.previousComment === "string" && input.previousComment.length <= 1000;
+}
+
 export function isHighlightInput(value: unknown): value is Pick<Highlight, "id" | "cfi" | "quote" | "comment"> {
   if (!value || typeof value !== "object") return false;
   const h = value as Highlight;

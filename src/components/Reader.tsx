@@ -1,10 +1,10 @@
 "use client";
 import InviteDialog from "./InviteDialog";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import ReaderMenu from "./ReaderMenu";
 import ReaderIcon from "./ReaderIcon";
 import ReaderRoomDetails from "./ReaderRoomDetails";
-import ePub, { type Book, type Rendition, type Location, type Contents } from "epubjs";
+import ePub, { EpubCFI, type Book, type Rendition, type Location, type Contents } from "epubjs";
 import { useRoom } from "@/lib/use-room";
 import type { Room } from "@/lib/types";
 import { useHighlights } from "@/lib/use-highlights";
@@ -17,6 +17,8 @@ import { useDrawings } from "@/lib/use-drawings";
 import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
 import ReaderContents from "./ReaderContents";
+import ReaderNotes from "./ReaderNotes";
+import { noteSection } from "@/lib/reader-notes";
 import { bookChapters, type Chapter } from "@/lib/reader-navigation";
 import ReadingSettingsDialog from "./ReadingSettingsDialog";
 import { loadSettings, saveSettings, READING_PALETTES, type ReadingSettings } from "@/lib/reading-settings";
@@ -26,6 +28,7 @@ import { registerReadingThemes, themeName } from "@/lib/reader-themes";
 export default function Reader({ room, onExit, onUnavailable }: { room: Room; onExit: (warning?: string) => void; onUnavailable: () => void }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const dialogTrigger = useRef<HTMLButtonElement | null>(null);
   const restoreDialogFocus = useRef(false);
@@ -41,7 +44,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const modalOpen = useRef(false);
   const [demoTip, setDemoTip] = useState(false);
   useEffect(() => { try { setDemoTip(localStorage.getItem("read-together:demo") === room.code); } catch { /* Optional hint. */ } }, [room.code]);
-  const { highlights, colors, error: highlightError, refresh, save, remove } = useHighlights(room.code);
+  const { highlights, loaded: notesLoaded, colors, error: highlightError, refresh, save, remove, edit } = useHighlights(room.code);
   const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
   const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, unavailable, flushProgress } = useRoom(room, refreshAnnotations);
@@ -52,6 +55,16 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const viewer = useRef<HTMLDivElement>(null);
   const rendition = useRef<Rendition | null>(null);
   const openedBook = useRef<Book | null>(null);
+  const notes = useMemo(() => highlights.map(mark => {
+    try {
+      const section = openedBook.current?.spine.get(mark.cfi);
+      if (!section) throw new Error("Missing section");
+      const anchor = new EpubCFI(mark.cfi); anchor.collapse(true);
+      return { ...mark, target: anchor.toString(), section: noteSection(chapters, section.index) };
+    } catch { return { ...mark, target: null, section: "Unavailable section" }; }
+  }).sort((a, b) => {
+    try { return new EpubCFI().compare(a.cfi, b.cfi); } catch { return 0; }
+  }), [highlights, chapters]);
   const current = useRef(me);
   // Saved CFI is a text anchor. Opening/reflow must not replace it with the
   // beginning of a differently sized page; navigation chooses a new anchor.
@@ -87,9 +100,9 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const shownDialog = useRef(highlightDialog);
   const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
-  modalOpen.current = menuOpen || detailsExpanded || contentsOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
+  modalOpen.current = menuOpen || detailsExpanded || contentsOpen || notesOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
   reflow.current = () => {
-    if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog) { resizePending.current = true; return; }
+    if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog || notesOpen) { resizePending.current = true; return; }
     resizePending.current = false;
     void navigate(current.current.cfi, false, undefined, { resize: true });
   };
@@ -101,16 +114,16 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   publish.current = update;
   const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
 
-  useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage]);
+  useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage && !notesOpen) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage, notesOpen]);
   useEffect(() => {
-    if (restoreDialogFocus.current && !contentsOpen && !settingsOpen && !audioPage && !turning && !loading && !navigationBusy.current) {
+    if (restoreDialogFocus.current && !contentsOpen && !notesOpen && !settingsOpen && !audioPage && !turning && !loading && !navigationBusy.current) {
       restoreDialogFocus.current = false;
       dialogTrigger.current?.focus();
     }
-  }, [contentsOpen, settingsOpen, audioPage, turning, loading]);
+  }, [contentsOpen, notesOpen, settingsOpen, audioPage, turning, loading]);
   function closeReadingDialog() {
     restoreDialogFocus.current = true;
-    setContentsOpen(false); setSettingsOpen(false);
+    setContentsOpen(false); setSettingsOpen(false); setNotesOpen(false);
   }
 
   useEffect(() => () => { audioController.current?.stop(); }, []);
@@ -477,6 +490,8 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       <ReaderMenu trigger={dialogTrigger} onOpenChange={setMenuOpen} items={[
         { label: "Contents", icon: "contents", disabled: takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage,
           onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setContentsOpen(true); } },
+        { label: "Notes", icon: "notes", disabled: loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog || !!audioPage,
+          onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setNotesOpen(true); void refresh(); } },
         { label: "Listen", icon: "listen", disabled: takenOver || loading || turning || drawing || drawingModal || !!highlightDialog, onSelect: openAudio },
         { label: "Reading settings", icon: "settings", disabled: takenOver || loading || turning || startingDrawing || drawing || contentsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage,
           onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setSettingsOpen(true); } },
@@ -519,6 +534,9 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
       onClose={closeReadingDialog} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) closeReadingDialog(); }); }} />}
+    {notesOpen && <ReaderNotes notes={notes} title={room.title} seat={room.seat} loaded={notesLoaded} syncError={highlightError} navigationError={error} navigating={turning} readOnly={takenOver}
+      onRefresh={refresh} onNavigate={target => navigate(target)} onClose={closeReadingDialog}
+      onEdit={async input => { await edit(input); notifyHighlights(); }} onRemove={async id => { await remove(id); notifyHighlights(); }} />}
     {settingsOpen && <ReadingSettingsDialog settings={settings} busy={turning} fixed={fixedLayout} storageAvailable={settingsStorage} error={error}
       onChange={changeSettings} onClose={closeReadingDialog} />}
     {highlightDialog && !takenOver && <HighlightDialog state={highlightDialog} highlights={highlights} seat={room.seat}

@@ -163,6 +163,18 @@ p { line-height: 1.5; }
 .invite-dialog::backdrop { background: #18233366; }
 .invite-dialog input { font-size: .875rem; }
 .reader-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow: auto; margin: auto; }
+.notes-heading, .note-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.notes-heading { justify-content: space-between; }
+.notes-heading h2 { margin: 0; }
+.notes-dialog input, .notes-dialog select, .notes-dialog textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; margin: 6px 0 14px; }
+.notes-dialog textarea { resize: vertical; }
+.notes-export-help { font-size: .875rem; }
+.notes-list { padding: 0; list-style: none; }
+.notes-list article, .note-editor { border-top: 1px solid var(--line); padding: 18px 0; }
+.note-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: .875rem; }
+.note-meta span { color: var(--secondary); }
+.notes-dialog blockquote { margin: 12px 0; padding: 12px; border-radius: 10px; font-family: Georgia, serif; white-space: pre-wrap; }
+.notes-dialog p, .notes-dialog blockquote, .note-meta { overflow-wrap: anywhere; }
 .contents-dialog ol { padding-left: 20px; }
 .contents-dialog li { margin: 8px 0; }
 .contents-dialog button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
