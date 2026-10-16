@@ -35,6 +35,16 @@ export default function Home() {
     return () => { active.current = false; creation.current?.abort(); };
   }, []);
 
+  useEffect(() => {
+    const deleted = (event: Event) => {
+      const code = (event as CustomEvent<string>).detail;
+      setDemoCode(current => current === code ? "" : current);
+      demoAttempt.current = null;
+    };
+    window.addEventListener("read-together:room-deleted", deleted);
+    return () => window.removeEventListener("read-together:room-deleted", deleted);
+  }, []);
+
   async function enter(roomCode: string) {
     requestRoomEntry(roomCode);
     router.push(roomPath(roomCode));

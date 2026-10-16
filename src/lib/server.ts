@@ -10,6 +10,10 @@ export class HttpError extends Error {
   constructor(message: string, public status = 400, public details: Record<string, unknown> = {}) { super(message); }
 }
 
+export function requireAvailableRoom(row: { deletion_requested_at?: string | null } | null) {
+  if (!row || row.deletion_requested_at) throw new HttpError("This room is no longer available.", 410, { code: "room_unavailable" });
+}
+
 export function admin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
@@ -73,6 +77,8 @@ export async function ensureProfile(who: Identity) {
 }
 
 export function fail(error: unknown, context: ErrorContext = { operation: "room-operation", route: "server" }) {
+  if (error && typeof error === "object" && "code" in error && error.code === "PT410")
+    return NextResponse.json({ error: "This room is no longer available.", code: "room_unavailable" }, { status: 410 });
   if (error instanceof HttpError && error.status < 500) return NextResponse.json({ error: error.message, ...error.details }, { status: error.status });
   if (error instanceof SyntaxError) return NextResponse.json({ error: "The request could not be read. Please try again." }, { status: 400 });
   const status = error instanceof HttpError ? error.status : 503;

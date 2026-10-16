@@ -241,6 +241,11 @@ button.text-button { min-height: 44px; padding: 8px 10px; border: 0; background:
 .account-panel .color-choice { min-width: 44px; width: 44px !important; min-height: 44px; height: 44px; }
 .home-intro .muted { font-size: .875rem; }
 .creation-status p { margin-top: 0; }
+.delete-room-dialog { width: min(100% - 32px, 500px); max-height: calc(100dvh - 32px); overflow: auto; }
+.delete-room-dialog strong { overflow-wrap: anywhere; }
+.delete-room-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.delete-room-actions button { flex: 1; }
+button.danger { background: #a32020; color: #fff; }
 @media (max-width: 360px) { .home-actions { flex-direction: column; } .continue-panel { flex-direction: column; align-items: stretch; } .continue-panel button { max-width: 100%; width: 100%; } }
 
 /* Personal room library */

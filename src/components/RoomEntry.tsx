@@ -16,6 +16,7 @@ export default function RoomEntry({ code }: { code: string }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
   const [takeover, setTakeover] = useState(false);
   const [signIn, setSignIn] = useState(false);
   const active = useRef(false);
@@ -32,6 +33,11 @@ export default function RoomEntry({ code }: { code: string }) {
       rememberRoom(localStorage, next); setTakeover(false); setRoom(next);
     } catch (reason) {
       if (!active.current || controller.signal.aborted) return;
+      let previouslyOpened = false;
+      try { previouslyOpened = savedRooms(localStorage).some(saved => saved.code === code); } catch { /* Browser storage may be unavailable. */ }
+      if (reason instanceof ApiError && (reason.details?.code === "room_unavailable" || (reason.status === 404 && previouslyOpened))) {
+        setRoom(null); setUnavailable(true); return;
+      }
       if (reason instanceof ApiError && reason.details?.takeoverRequired) {
         setTakeover(true); setError("This profile is open on another device. Choose Continue here to take control.");
       } else {
@@ -70,7 +76,11 @@ export default function RoomEntry({ code }: { code: string }) {
     return () => { disposed = true; active.current = false; request.current?.abort(); request.current = null; data.subscription.unsubscribe(); };
   }, [code, enter]);
 
-  if (room) return <Reader key={`${room.code}:${room.seat}:${room.controlVersion}`} room={room} onExit={warning => { rememberExitWarning(warning); setRoom(null); router.push("/"); }} />;
+  if (unavailable) return <main className="home room-entry"><section className="panel" role="alert">
+    <h1>Room no longer available</h1><p>This room was removed or is being deleted. Reading and synchronization have stopped.</p>
+    <Link href="/">Back to my rooms</Link>
+  </section></main>;
+  if (room) return <Reader key={`${room.code}:${room.seat}:${room.controlVersion}`} room={room} onUnavailable={() => { setRoom(null); setUnavailable(true); }} onExit={warning => { rememberExitWarning(warning); setRoom(null); router.push("/"); }} />;
   return <main className="home room-entry">
     <header><Link href="/">Read together</Link><h1>You’re invited to read</h1></header>
     <section className="panel"><h2>Join this room</h2><p>Anyone with this invitation can take the available second seat.</p>

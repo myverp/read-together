@@ -1,4 +1,4 @@
-import { admin, controlFor, HttpError, identity, seatFor } from "@/lib/server";
+import { admin, controlFor, HttpError, identity, requireAvailableRoom, seatFor } from "@/lib/server";
 import { elevenlabs, SpeechError } from "@/lib/elevenlabs";
 
 export const maxDuration = 60;
@@ -23,8 +23,9 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     let input;
     try { input = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new HttpError("Invalid audio request."); }
     if (!input || typeof input !== "object" || !["voices", "speech"].includes(input.action)) throw new HttpError("Invalid audio request.");
-    const { data: room, error } = await admin().from("reading_rooms").select("ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two").eq("code", code).maybeSingle();
+    const { data: room, error } = await admin().from("reading_rooms").select("deletion_requested_at,ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two").eq("code", code).maybeSingle();
     if (error) throw new HttpError("Room service unavailable. Try again.", 503);
+    requireAvailableRoom(room);
     const seat = room && seatFor(room, who);
     if (!room?.ready || !seat) throw new HttpError("Join this room before using audio.", 403);
     const linked = !!(who.userId && (seat === 1 ? room.reader_one_user : room.reader_two_user) === who.userId);
@@ -33,6 +34,6 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
   } catch (error) {
     // No logging: request data contains a personal API key and private book text.
     const known = error instanceof HttpError || error instanceof SpeechError;
-    return Response.json({ error: known ? error.message : "Audio request failed. Please try again." }, { status: known ? error.status : 503, headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ...(error instanceof HttpError ? error.details : {}), error: known ? error.message : "Audio request failed. Please try again." }, { status: known ? error.status : 503, headers: { "Cache-Control": "no-store" } });
   }
 }

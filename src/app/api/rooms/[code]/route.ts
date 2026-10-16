@@ -1,5 +1,28 @@
-import { admin, controlFor, ensureProfile, fail, HttpError, identity, occupantHash, roomResponse, seatFor } from "@/lib/server";
+import { admin, controlFor, ensureProfile, fail, HttpError, identity, occupantHash, requireAvailableRoom, roomResponse, seatFor } from "@/lib/server";
+import { deleteMarkedRoom } from "@/lib/room-deletion-server";
 import type { HighlightState } from "@/lib/highlights";
+
+export async function DELETE(request: Request, context: { params: Promise<{ code: string }> }) {
+  try {
+    const who = await identity(request);
+    const { code } = await context.params;
+    if (!/^[A-F0-9]{12}$/.test(code)) throw new HttpError("Invalid room code.");
+    const body = await request.json();
+    if (body?.confirmation !== "ВИДАЛИТИ") throw new HttpError("Type ВИДАЛИТИ to confirm permanent deletion.");
+    const db = admin();
+    const { data, error } = await db.rpc("request_room_deletion", {
+      p_code: code, p_user: who.userId, p_guest_hash: who.guestHash, p_control_hash: who.controlHash,
+    });
+    if (error) throw error;
+    if (data?.code === "access_denied") throw new HttpError("Only the room creator can delete this room.", 403);
+    if (data?.code === "control_changed") throw new HttpError("Open this room and choose Continue here before deleting it from this device.", 409, { code: "control_changed" });
+    if (data?.code === "deletion_in_progress") throw new HttpError("Deletion already started on another device. Cleanup will finish automatically, or you can retry from that device.", 409);
+    if (data?.code === "not_ready") throw new HttpError("Finish opening this room before deleting it.", 409);
+    if (data?.code === "deleting") await deleteMarkedRoom(db, code, data.book_path);
+    else if (data?.code !== "absent") throw new Error("Unexpected deletion result");
+    return Response.json({ deleted: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) { return fail(error, { operation: "delete-room", route: "/api/rooms/[code]" }); }
+}
 
 export async function POST(request: Request, context: { params: Promise<{ code: string }> }) {
   try {
@@ -12,6 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ code: 
     const { data: initial, error } = await db.from("reading_rooms").select("*").eq("code", code).maybeSingle();
     if (error) throw error;
     if (!initial) throw new HttpError("Room not found. Check the code.", 404);
+    requireAvailableRoom(initial);
     let room = initial;
     if (room.cleanup_started_at) throw new HttpError("This unfinished room has expired. Create a new room.", 410);
     let seat = seatFor(room, who);

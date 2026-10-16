@@ -4,6 +4,7 @@ import { api, supabase } from "@/lib/client";
 import { cacheRoomMetadata, savedRooms } from "@/lib/room-history";
 import { readPosition } from "@/lib/local-progress";
 import RoomActions from "./RoomActions";
+import DeleteRoomDialog from "./DeleteRoomDialog";
 import type { LibraryRoom } from "@/lib/types";
 
 type ListedRoom = LibraryRoom & { available: boolean };
@@ -17,6 +18,7 @@ export default function RoomLibrary({ onOpenRoom, disabled = false }: { onOpenRo
   const [busy, setBusy] = useState<string[]>([]);
   const [actionError, setActionError] = useState<{ code: string; archived: boolean; message: string } | null>(null);
   const [message, setMessage] = useState("");
+  const [deletingRoom, setDeletingRoom] = useState<ListedRoom | null>(null);
   const request = useRef<AbortController | null>(null);
   const actions = useRef(new Set<string>());
   const activeTab = useRef<HTMLButtonElement>(null);
@@ -34,7 +36,7 @@ export default function RoomLibrary({ onOpenRoom, disabled = false }: { onOpenRo
       const cached: ListedRoom[] = local.map(room => ({ ...room, title: room.title || "Saved room", section: room.section || "", createdAt: "",
         archivedAt: room.archivedAt || null, lastOpenedAt: room.lastOpenedAt || null, linked: false, available: true }));
       // Never retain another profile's list while its replacement is loading.
-      if (account.current !== nextUserId) { account.current = nextUserId; setRooms(cached); setUserId(nextUserId); setActionError(null); }
+      if (account.current !== nextUserId) { account.current = nextUserId; setRooms(cached); setUserId(nextUserId); setActionError(null); setDeletingRoom(null); }
       const linked: LibraryRoom[] = [];
       if (nextUserId) {
         let cursor: string | null = null;
@@ -87,21 +89,32 @@ export default function RoomLibrary({ onOpenRoom, disabled = false }: { onOpenRo
   }
 
   const sorted = [...rooms].sort((a, b) => (Date.parse(b.lastOpenedAt || b.createdAt) || 0) - (Date.parse(a.lastOpenedAt || a.createdAt) || 0));
-  const recent = sorted.find(room => room.available && !room.archivedAt);
+  const recent = sorted.find(room => room.available && !room.archivedAt && !room.deleting);
   const visible = sorted.filter(room => tab === "archive" ? !!room.archivedAt : !room.archivedAt);
   function rows(group: ListedRoom[]) {
     return <ul className="room-library-list">{group.map(room => <li className="room-library-row" key={room.code}>
       <div className="room-library-info"><h3>{room.title}</h3><small>{room.code}</small>
+        {room.deleting && <p role="status">Deletion started. Retry to finish cleanup.</p>}
         {room.available ? room.section && room.section !== "Opening book" && <p className="muted">{room.section}</p> : <p className="muted">Unavailable for this reader. Check the original browser or profile.</p>}
       </div>
       {room.available && <div className="room-library-actions">
-        <button className="secondary" disabled={disabled || busy.includes(room.code)} aria-label={`${room.title} ${room.code} Continue`} onClick={() => void onOpenRoom(room.code)}>Continue</button>
-        <RoomActions title={room.title} archived={!!room.archivedAt} disabled={disabled || busy.includes(room.code)} onArchive={() => void archive(room, !room.archivedAt)} />
+        <button className="secondary" disabled={disabled || busy.includes(room.code) || room.deleting} aria-label={`${room.title} ${room.code} Continue`} onClick={() => void onOpenRoom(room.code)}>Continue</button>
+        <RoomActions title={room.title} archived={!!room.archivedAt} disabled={disabled || busy.includes(room.code)} deleting={room.deleting}
+          onArchive={() => void archive(room, !room.archivedAt)} onDelete={room.seat === 1 ? () => setDeletingRoom(room) : undefined} />
       </div>}
       {actionError?.code === room.code && <div className="room-library-error"><p className="error" role="alert">{actionError.message}</p><button className="secondary" disabled={busy.includes(room.code)} onClick={() => void archive(room, actionError.archived)}>Retry {actionError.archived ? "archive" : "restore"}</button></div>}
     </li>)}</ul>;
   }
   return <>
+    {deletingRoom && <DeleteRoomDialog code={deletingRoom.code} title={deletingRoom.title} onClose={() => { setDeletingRoom(null); void refresh(); }}
+      onDeleted={cleaned => {
+        request.current?.abort(); setLoading(false);
+        setRooms(previous => previous.filter(room => room.code !== deletingRoom.code));
+        setDeletingRoom(null); setActionError(null);
+        setMessage(cleaned ? "Room permanently deleted." : "Room permanently deleted. Browser storage could not be fully cleared on this device.");
+        window.dispatchEvent(new CustomEvent("read-together:room-deleted", { detail: deletingRoom.code }));
+        requestAnimationFrame(() => (tab === "active" ? activeTab : archiveTab).current?.focus());
+      }} />}
     {recent && <section className="panel continue-panel"><div><h2>Continue reading</h2><p>{recent.title}</p>{recent.section && recent.section !== "Opening book" && <p className="muted">{recent.section}</p>}</div><button className="secondary" disabled={disabled} onClick={() => void onOpenRoom(recent.code)}>Continue reading</button></section>}
     <section className="panel room-library" aria-labelledby="room-library-title"><h2 id="room-library-title">My rooms</h2>
       <div className="room-library-tabs" role="group" aria-label="Room list">

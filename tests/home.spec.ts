@@ -50,6 +50,6 @@ test("validated legacy history offers explicit continue without admitting on the
   await page.route("**/api/rooms/ABCDEF123456", route => route.fulfill({ status: 404, json: { error: "Room not found. Check the code." } }));
   await page.getByRole("button", { name: "Continue reading", exact: true }).click();
   await expect(page).toHaveURL(/\/room\/ABCDEF123456$/);
-  await expect(page.getByText("Room not found. Check the code.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Room no longer available" })).toBeVisible();
   expect(admissions).toBe(1);
 });
