@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError, readerToken, supabase } from "@/lib/client";
 import { rememberRoom, savedRooms } from "@/lib/room-history";
-import { consumeRoomEntry, rememberExitWarning, requestRoomEntry, roomPath } from "@/lib/room-invitation";
-import type { Room, RoomSummary } from "@/lib/types";
+import { consumeRoomEntry, rememberExitWarning } from "@/lib/room-invitation";
+import type { Room, LibraryRoom } from "@/lib/types";
 import AccountPanel from "./AccountPanel";
 
 const Reader = dynamic(() => import("./Reader"), { ssr: false, loading: () => <p role="status">Opening reader…</p> });
@@ -54,8 +54,8 @@ export default function RoomEntry({ code }: { code: string }) {
         if (explicit.current || savedRooms(localStorage).some(saved => saved.code === code)) { if (!disposed) await enter(); return; }
         const { data } = await supabase().auth.getSession();
         if (data.session) {
-          const profile = await api<{ rooms: RoomSummary[] }>("/api/profile", undefined, "GET");
-          if (!disposed && profile.rooms.some(saved => saved.code === code)) { await enter(); return; }
+          const profile = await api<{ rooms: LibraryRoom[] }>("/api/rooms/library", { codes: [code] });
+          if (!disposed && profile.rooms.some(saved => saved.code === code && saved.linked)) { await enter(); return; }
         }
       } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : "Could not check your saved rooms."); }
       if (!disposed) setBusy(false);
@@ -79,6 +79,6 @@ export default function RoomEntry({ code }: { code: string }) {
       {busy && <p role="status">Opening room…</p>}{error && <p className="error" role="alert">{error}</p>}
     </section>
     <button className="secondary" aria-expanded={signIn} onClick={() => setSignIn(value => !value)}>Sign in to your profile</button>
-    {signIn && <AccountPanel initiallyOpen onOpenRoom={async next => { if (next === code) await enter(); else { requestRoomEntry(next); router.push(roomPath(next)); } }} />}
+    {signIn && <AccountPanel initiallyOpen />}
   </main>;
 }

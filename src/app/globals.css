@@ -242,3 +242,25 @@ button.text-button { min-height: 44px; padding: 8px 10px; border: 0; background:
 .home-intro .muted { font-size: .875rem; }
 .creation-status p { margin-top: 0; }
 @media (max-width: 360px) { .home-actions { flex-direction: column; } .continue-panel { flex-direction: column; align-items: stretch; } .continue-panel button { max-width: 100%; width: 100%; } }
+
+/* Personal room library */
+.room-library-tabs { display: flex; gap: 8px; margin: 16px 0; }
+.room-library-tabs button { flex: 1; }
+.room-library-tabs [aria-pressed="true"] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.room-library-list { list-style: none; padding: 0; margin: 0; }
+.room-library-row { padding: 18px 0; border-top: 1px solid var(--line); }
+.room-library-info { min-width: 0; overflow-wrap: anywhere; }
+.room-library-info h3 { margin: 0 0 5px; font-size: 1rem; }
+.room-library-info small { color: var(--secondary); font-family: ui-monospace, monospace; }
+.room-library-info p { margin: 8px 0 0; font-size: .875rem; }
+.room-library-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.room-library-actions button { width: auto; }
+.room-library-group { margin: 24px 0 6px; font-size: 1rem; }
+.room-library-note { margin: 20px 0 0; font-size: .8rem; line-height: 1.5; }
+.room-library-error { margin-top: 12px; }
+
+.room-actions-menu { position: relative; }
+.room-actions-menu summary { cursor: pointer; min-height: 44px; padding: 12px 10px; color: var(--accent); }
+.room-actions-menu summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.room-actions-popover { position: absolute; z-index: 5; right: 0; top: 100%; min-width: 170px; max-width: calc(100vw - 48px); padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: 0 8px 24px #0002; }
+.room-actions-popover button { display: block; width: 100%; text-align: left; }
