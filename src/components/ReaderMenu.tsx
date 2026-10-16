@@ -64,8 +64,8 @@ export default function ReaderMenu({ items, trigger, onOpenChange }: {
       }
       if (event.key === "Tab") { changeOpen(false); trigger.current?.focus(); }
     }}>
-      {items.map((item, index) => <div key={item.label} role="none">
-        {index === 3 && <div className="reader-menu-separator" role="separator" />}
+      {items.map(item => <div key={item.label} role="none">
+        {item.label === "Invite" && <div className="reader-menu-separator" role="separator" />}
         <button role="menuitem" tabIndex={-1} className="secondary" disabled={item.disabled} onClick={() => {
           changeOpen(false); trigger.current?.focus(); item.onSelect();
         }}><ReaderIcon name={item.icon} /><span>{item.label}</span></button>
