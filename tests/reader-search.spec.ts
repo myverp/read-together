@@ -31,6 +31,7 @@ test("book search is inert until selection, returns to prior Done position and p
   await expect.poll(async () => (await room.position()).cfi).toBe(previous.cfi);
   await expect.poll(async () => (await room.position()).done).toBe(true);
   await expect(page.getByRole("button", { name: "Return to previous position" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reader menu", exact: true })).toBeFocused();
   await room.reopen(); expect((await room.position()).cfi).toBe(previous.cfi);
   const after = await (await request.get(`/api/rooms/${room.code}/state`, { headers })).json();
   expect(after.me).toEqual(partner.me);

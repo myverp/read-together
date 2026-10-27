@@ -556,7 +556,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     <div className="reader-eye-row">
       {searchReturn && <button className="secondary search-return" disabled={takenOver || loading || turning || drawing || drawingModal || !!highlightDialog || !!audioPage} onClick={async () => {
         const previous = searchReturn;
-        if (await navigate(previous.cfi)) { const restored = { ...current.current, done: previous.done }; current.current = restored; update(restored); setSearchReturn(null); }
+        if (await navigate(previous.cfi)) { const restored = { ...current.current, done: previous.done }; current.current = restored; update(restored); setSearchReturn(null); requestAnimationFrame(() => dialogTrigger.current?.focus()); }
       }}>Return to previous position</button>}
 
       <button className="secondary reader-icon-button" aria-pressed={drawingsHidden} onClick={() => setDrawingsHidden(value => !value)} aria-label={drawingsHidden ? "Show drawings" : "Hide drawings"} title={drawingsHidden ? "Show drawings" : "Hide drawings"}><ReaderIcon name="eye" hidden={drawingsHidden} /></button>
