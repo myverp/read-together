@@ -1,6 +1,7 @@
-export type ReaderIconName = "menu" | "exit" | "contents" | "notes" | "listen" | "settings" | "invite" | "partner" | "info" | "prev" | "next" | "draw" | "eye";
+export type ReaderIconName = "search" | "menu" | "exit" | "contents" | "notes" | "listen" | "settings" | "invite" | "partner" | "info" | "prev" | "next" | "draw" | "eye";
 
 const paths: Record<ReaderIconName, string> = {
+  search: "M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1.7 4.3L21 21",
   menu: "M4 6h16M4 12h16M4 18h16",
   exit: "M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M9 12h12m-4-4 4 4-4 4",
   contents: "M12 6.5C9.5 4.7 6.2 4.2 3 5v14c3.2-.8 6.5-.3 9 1.5 2.5-1.8 5.8-2.3 9-1.5V5c-3.2-.8-6.5-.3-9 1.5Zm0 0v14M6.5 9h2M15.5 9h2M6.5 12.5h2M15.5 12.5h2",
