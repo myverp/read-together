@@ -18,6 +18,8 @@ import DrawingLayer from "./DrawingLayer";
 import { attachReaderSwipes } from "@/lib/reader-swipes";
 import ReaderContents from "./ReaderContents";
 import ReaderNotes from "./ReaderNotes";
+import ReaderSearch from "./ReaderSearch";
+import { searchBook } from "@/lib/book-search";
 import { noteSection } from "@/lib/reader-notes";
 import { bookChapters, type Chapter } from "@/lib/reader-navigation";
 import ReadingSettingsDialog from "./ReadingSettingsDialog";
@@ -29,6 +31,8 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const [inviteOpen, setInviteOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchReturn, setSearchReturn] = useState<{ cfi: string; done: boolean } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const dialogTrigger = useRef<HTMLButtonElement | null>(null);
   const restoreDialogFocus = useRef(false);
@@ -100,9 +104,9 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const shownDialog = useRef(highlightDialog);
   const controlLost = useRef(takenOver); controlLost.current = takenOver;
   shownDialog.current = highlightDialog;
-  modalOpen.current = menuOpen || detailsExpanded || contentsOpen || notesOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
+  modalOpen.current = menuOpen || detailsExpanded || contentsOpen || notesOpen || searchOpen || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage;
   reflow.current = () => {
-    if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog || notesOpen) { resizePending.current = true; return; }
+    if (!viewer.current || loading || navigationBusy.current || audioOpen.current || drawing || drawingModal || highlightDialog || notesOpen || searchOpen) { resizePending.current = true; return; }
     resizePending.current = false;
     void navigate(current.current.cfi, false, undefined, { resize: true });
   };
@@ -114,16 +118,16 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   publish.current = update;
   const setAudioController = useCallback((controller: PageAudioController | null) => { audioController.current = controller; }, []);
 
-  useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage && !notesOpen) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage, notesOpen]);
+  useEffect(() => { if (resizePending.current && !loading && !turning && !drawing && !drawingModal && !highlightDialog && !audioPage && !notesOpen && !searchOpen) reflow.current(); }, [loading, turning, drawing, drawingModal, highlightDialog, audioPage, notesOpen, searchOpen]);
   useEffect(() => {
-    if (restoreDialogFocus.current && !contentsOpen && !notesOpen && !settingsOpen && !audioPage && !turning && !loading && !navigationBusy.current) {
+    if (restoreDialogFocus.current && !contentsOpen && !notesOpen && !searchOpen && !settingsOpen && !audioPage && !turning && !loading && !navigationBusy.current) {
       restoreDialogFocus.current = false;
       dialogTrigger.current?.focus();
     }
-  }, [contentsOpen, notesOpen, settingsOpen, audioPage, turning, loading]);
+  }, [contentsOpen, notesOpen, searchOpen, settingsOpen, audioPage, turning, loading]);
   function closeReadingDialog() {
     restoreDialogFocus.current = true;
-    setContentsOpen(false); setSettingsOpen(false); setNotesOpen(false);
+    setContentsOpen(false); setSettingsOpen(false); setNotesOpen(false); setSearchOpen(false);
   }
 
   useEffect(() => () => { audioController.current?.stop(); }, []);
@@ -490,6 +494,8 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       <ReaderMenu trigger={dialogTrigger} onOpenChange={setMenuOpen} items={[
         { label: "Contents", icon: "contents", disabled: takenOver || loading || turning || startingDrawing || drawing || settingsOpen || inviteOpen || !!highlightDialog || drawingModal || !!audioPage,
           onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setContentsOpen(true); } },
+        { label: "Search book", icon: "search", disabled: takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog || !!audioPage,
+          onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setSearchOpen(true); } },
         { label: "Notes", icon: "notes", disabled: loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog || !!audioPage,
           onSelect: () => { clearSelection(); audioController.current?.stop(); setError(""); setNotesOpen(true); void refresh(); } },
         { label: "Listen", icon: "listen", disabled: takenOver || loading || turning || drawing || drawingModal || !!highlightDialog, onSelect: openAudio },
@@ -534,6 +540,9 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     {inviteOpen && <InviteDialog code={room.code} onClose={() => setInviteOpen(false)} />}
     {contentsOpen && <ReaderContents chapters={chapters} index={sectionIndex} busy={turning} error={error}
       onClose={closeReadingDialog} onNavigate={chapter => { if (chapter.target) void navigate(chapter.target, false, chapter).then(ok => { if (ok) closeReadingDialog(); }); }} />}
+    {searchOpen && <ReaderSearch busy={turning} navigationError={error} onClose={closeReadingDialog}
+      onSearch={(query, signal, progress) => { const book = openedBook.current; if (!book) return Promise.reject(new Error("Book unavailable")); return searchBook(book, chapters, query, signal, progress); }}
+      onNavigate={async cfi => { const previous = { cfi: current.current.cfi, done: current.current.done }; const ok = await navigate(cfi); if (ok) setSearchReturn(value => value || previous); return ok; }} />}
     {notesOpen && <ReaderNotes notes={notes} title={room.title} seat={room.seat} loaded={notesLoaded} syncError={highlightError} navigationError={error} navigating={turning} readOnly={takenOver}
       onRefresh={refresh} onNavigate={target => navigate(target)} onClose={closeReadingDialog}
       onEdit={async input => { await edit(input); notifyHighlights(); }} onRemove={async id => { await remove(id); notifyHighlights(); }} />}
@@ -545,6 +554,11 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       onRemove={async id => { await remove(id); notifyHighlights(); }} />}
     {audioPage && <PageAudio code={room.code} text={audioPage.text} apiKey={audioKey} setApiKey={setAudioKey} preferredVoice={audioVoice} setPreferredVoice={setAudioVoice} onNextPage={nextAudioPage} onController={setAudioController} onClose={closeAudio} />}
     <div className="reader-eye-row">
+      {searchReturn && <button className="secondary search-return" disabled={takenOver || loading || turning || drawing || drawingModal || !!highlightDialog || !!audioPage} onClick={async () => {
+        const previous = searchReturn;
+        if (await navigate(previous.cfi)) { const restored = { ...current.current, done: previous.done }; current.current = restored; update(restored); setSearchReturn(null); requestAnimationFrame(() => dialogTrigger.current?.focus()); }
+      }}>Return to previous position</button>}
+
       <button className="secondary reader-icon-button" aria-pressed={drawingsHidden} onClick={() => setDrawingsHidden(value => !value)} aria-label={drawingsHidden ? "Show drawings" : "Hide drawings"} title={drawingsHidden ? "Show drawings" : "Hide drawings"}><ReaderIcon name="eye" hidden={drawingsHidden} /></button>
     </div>
     <footer className="reader-controls">

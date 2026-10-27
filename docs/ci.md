@@ -34,6 +34,8 @@ Network-counter races exercise the real database function directly. Unit tests s
 
 ## Run the same integration job locally
 
+`tests/reader-search.spec.ts` covers inert book search, literal/inline text matching, bounded and partial results, cancellation, CFI navigation and return with Done restoration, partner independence, and compact expandable Notes in three themes and narrow/desktop viewports.
+
 The Notes suite (`tests/reader-notes.spec.ts`, included in `test:browser:ci`) covers author/search filters, empty and failed-loading states, comment drafts after failures/conflicts/removal, own-only Markdown downloads, mobile/themes/focus, confirmed quote navigation/reopen and unchanged partner position. Unit tests verify Unicode filtering, literal Markdown output and edit input bounds.
 
 Phase 2 adds Contents and appearance coverage, including safe EPUB 2/3 navigation,

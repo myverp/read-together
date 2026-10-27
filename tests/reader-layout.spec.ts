@@ -14,7 +14,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await expect(page.getByRole("button", { name: "Hide drawings" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await trigger.focus(); await page.keyboard.press("ArrowDown");
   const items = page.getByRole("menuitem");
-  await expect(items).toHaveText(["Contents", "Notes", "Listen", "Reading settings", "Invite", "Partner", "Room details"]);
+  await expect(items).toHaveText(["Contents", "Search book", "Notes", "Listen", "Reading settings", "Invite", "Partner", "Room details"]);
   await expect(items.first()).toBeFocused();
   await expect(page.getByRole("menuitem", { name: "Partner", exact: true })).toBeDisabled();
   await page.keyboard.press("End"); await expect(items.last()).toBeFocused();
@@ -25,7 +25,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await page.keyboard.press("Tab");
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Exit", exact: true })).toBeFocused();
-  for (const name of ["Contents", "Notes", "Reading settings", "Invite", "Room details", "Listen"]) {
+  for (const name of ["Contents", "Search book", "Notes", "Reading settings", "Invite", "Room details", "Listen"]) {
     await selectReaderAction(page, name);
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(await page.getByRole("dialog").evaluate(dialog => dialog.contains(document.activeElement))).toBe(true);
