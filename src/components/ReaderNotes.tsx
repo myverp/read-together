@@ -12,6 +12,7 @@ export default function ReaderNotes({ notes, title, seat, loaded, syncError, nav
   const heading = useRef<HTMLHeadingElement>(null);
   const actionTrigger = useRef<HTMLButtonElement | null>(null);
   const inFlight = useRef(false);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [author, setAuthor] = useState<NoteAuthor>("all");
   const [editing, setEditing] = useState<ReaderNote | null>(null);
@@ -56,10 +57,11 @@ export default function ReaderNotes({ notes, title, seat, loaded, syncError, nav
   return <dialog ref={dialog} className="panel reader-dialog notes-dialog" aria-labelledby="notes-title" onCancel={event => { event.preventDefault(); close(); }}>
     <div className="notes-heading"><h2 id="notes-title" ref={heading} tabIndex={-1}>Notes</h2><button className="secondary" onClick={close} disabled={locked}>Close notes</button></div>
     <p className="muted">Highlights and comments in {title}</p>
-    <label htmlFor="notes-search">Search notes</label><input id="notes-search" type="search" value={query} disabled={locked || !!editing || !!removing} onChange={event => setQuery(event.target.value)} placeholder="Quote, comment or section" />
+    <div className="notes-filters"><div><label htmlFor="notes-search">Search notes</label><input id="notes-search" type="search" value={query} disabled={locked || !!editing || !!removing} onChange={event => setQuery(event.target.value)} placeholder="Quote, comment or section" /></div>
+    <div>
     <label htmlFor="notes-author">Author</label><select id="notes-author" value={author} disabled={locked || !!editing || !!removing} onChange={event => setAuthor(event.target.value as NoteAuthor)}>
       <option value="all">All</option><option value="mine">Mine</option><option value="partner">Partner</option>
-    </select>
+    </select></div></div>
     <button className="secondary" disabled={!loaded || !notes.some(note => note.seat === seat) || locked || !!editing || !!removing} onClick={download}>Export my notes</button>
     <p className="muted notes-export-help">Markdown file · all your saved notes, regardless of filters. Partner’s notes and drawings are excluded.</p>
     {!loaded && !syncError && <p role="status">Loading notes…</p>}
@@ -79,7 +81,8 @@ export default function ReaderNotes({ notes, title, seat, loaded, syncError, nav
     {loaded && !visible.length && <p>{notes.length ? "No notes match this search and author." : "No notes yet. Select text in the book to save a highlight or comment."}</p>}
     <ul className="notes-list">{visible.map(note => <li key={note.id}><article aria-label={`${note.seat === seat ? "Your" : "Partner’s"} note: ${note.quote.slice(0, 60)}`}>
       <div className="note-meta"><strong>{note.seat === seat ? "You" : "Partner"}</strong><span>{note.section}</span></div>
-      <blockquote>{note.quote}</blockquote>{note.comment ? <p className="highlight-comment">{note.comment}</p> : <p className="muted">No comment</p>}
+      <blockquote id={`note-quote-${note.id}`} className={note.quote.length > 180 && !expanded.includes(note.id) ? "note-quote-collapsed" : ""}>{note.quote}</blockquote>
+      {note.quote.length > 180 && <button className="secondary note-expand" aria-expanded={expanded.includes(note.id)} aria-controls={`note-quote-${note.id}`} onClick={() => setExpanded(value => value.includes(note.id) ? value.filter(id => id !== note.id) : [...value, note.id])}>{expanded.includes(note.id) ? "Collapse quote" : "Expand quote"}</button>}{note.comment ? <p className="highlight-comment">{note.comment}</p> : <p className="muted">No comment</p>}
       <div className="note-actions"><button className="secondary" disabled={locked || !!editing || !!removing || readOnly || !note.target} onClick={() => { if (note.target) void onNavigate(note.target).then(ok => { if (ok) onClose(); }); }}>Go to quote</button>
         {note.seat === seat && <><button className="secondary" disabled={locked || !!editing || !!removing || readOnly} onClick={event => { actionTrigger.current = event.currentTarget; setEditing(note); setDraft(note.comment); setError(""); setMessage(""); }}>Edit comment</button>
           <button className="secondary" disabled={locked || !!editing || !!removing || readOnly} onClick={event => { actionTrigger.current = event.currentTarget; setRemoving(note.id); setError(""); setMessage(""); }}>Remove</button></>}
