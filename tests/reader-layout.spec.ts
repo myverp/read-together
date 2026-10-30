@@ -95,8 +95,9 @@ test("rotation during a delayed page turn queues real geometry after navigation"
   await page.setViewportSize({width:844,height:390});
   await expect(page.getByRole("button",{name:"Next page"})).toBeEnabled();
   await expect.poll(async()=>{
-    const book=await page.locator(".book-view").boundingBox(),frame=await page.locator(".book-view iframe").boundingBox();
-    return !!book&&!!frame&&Math.abs(book.width-frame.width)<1&&Math.abs(book.height-frame.height)<1;
+    // The iframe spans every CSS column in a section; epub-container is the clipped page viewport.
+    const book=await page.locator(".book-view").boundingBox(),stage=await page.locator(".book-view .epub-container").boundingBox();
+    return !!book&&!!stage&&Math.abs(book.width-stage.width)<1&&Math.abs(book.height-stage.height)<1;
   }).toBe(true);
   await expect.poll(async()=>(await room.position()).cfi).not.toBe(before.cfi);
   const rotated=await room.position();
