@@ -15,6 +15,8 @@ The workflow in `.github/workflows/ci.yml` has two independent jobs:
 
 The integration job pins Supabase CLI **2.114.0** and uses a separate `read-together-ci` Docker project on ports **57320–57324**. Its generated configuration is under ignored `.ci-supabase/`; credentials for this local backend and a random maintenance secret are saved in ignored `.env.ci`. GitHub masks those values. No GitHub repository secrets or production services are needed, including for pull requests from forks.
 
+Reading comfort coverage extends `reader-settings.spec.ts` with v1-to-v2 personal settings migration, serif/system/book fonts, 16–32 px text, line spacing, responsive text widths, prose alignment, full viewport themes, phone/tablet/landscape CFI and Done retention, and rollback after draft geometry applies. Focus mode tests retain book geometry while hiding controls, restore by iframe Escape/native central short tap/keyboard (including translated pages), exclude captured selection and moved gestures, retain hidden controls during a native swipe, and reset on reopen. Defaults for new/reset settings are Light, Georgia 20 px, line height 1.6 and standard width; existing v1 theme and size are retained. Physical-device acceptance remains separate.
+
 The reader layout suite additionally covers menu order, keyboard/outside dismissal (including a replacement EPUB iframe after rotation), Tab to Exit, focus transfer to every panel, theme backgrounds, stable book geometry and CFI, and 320px/low-height/desktop layout. Successful local/cloud save labels are no longer rendered; progress tests inspect confirmed queue completion, distinguish local-only saves from failed local writes, and retain all failure/retry/conflict scenarios.
 
 ## Real backend checks

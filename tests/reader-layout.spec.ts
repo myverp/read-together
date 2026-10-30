@@ -14,7 +14,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await expect(page.getByRole("button", { name: "Hide drawings" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await trigger.focus(); await page.keyboard.press("ArrowDown");
   const items = page.getByRole("menuitem");
-  await expect(items).toHaveText(["Contents", "Search book", "Notes", "Listen", "Reading settings", "Invite", "Partner", "Room details"]);
+  await expect(items).toHaveText(["Contents", "Search book", "Notes", "Listen", "Reading settings", "Hide interface", "Invite", "Partner", "Room details"]);
   await expect(items.first()).toBeFocused();
   await expect(page.getByRole("menuitem", { name: "Partner", exact: true })).toBeDisabled();
   await page.keyboard.press("End"); await expect(items.last()).toBeFocused();
@@ -36,7 +36,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   for (const [theme, background] of [["Dark", "rgb(23, 25, 30)"], ["Sepia", "rgb(244, 236, 216)"], ["Light", "rgb(255, 255, 255)"]]) {
     await selectReaderAction(page, "Reading settings");
     await page.getByRole("radio", { name: theme, exact: true }).check();
-    await expect(page.getByLabel("Text size")).toBeEnabled();
+    await expect(page.getByLabel("Text size", {exact:true})).toBeEnabled();
     await page.getByRole("button", { name: "Close reading settings" }).click();
     await openReaderMenu(page);
     await expect(page.getByRole("menu")).toHaveCSS("background-color", background);
@@ -82,4 +82,24 @@ test("reader menu still dismisses over the book after rotation replaces its ifra
   await page.mouse.click(book!.x + book!.width - 20, book!.y + 30);
   await expect(page.getByRole("menu")).toHaveCount(0);
   expect(await room.position()).toEqual(before);
+});
+
+test("rotation during a delayed page turn queues real geometry after navigation", async({page})=>{
+  const room=await openReader(page);const before=await room.position();
+  await page.evaluate(()=>{
+    const frame=requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=callback=>frame(time=>{setTimeout(()=>callback(time),150);});
+  });
+  await page.getByRole("button",{name:"Next page"}).click();
+  await expect(page.getByRole("button",{name:"Next page"})).toBeDisabled();
+  await page.setViewportSize({width:844,height:390});
+  await expect(page.getByRole("button",{name:"Next page"})).toBeEnabled();
+  await expect.poll(async()=>{
+    // The iframe spans every CSS column in a section; epub-container is the clipped page viewport.
+    const book=await page.locator(".book-view").boundingBox(),stage=await page.locator(".book-view .epub-container").boundingBox();
+    return !!book&&!!stage&&Math.abs(book.width-stage.width)<1&&Math.abs(book.height-stage.height)<1;
+  }).toBe(true);
+  await expect.poll(async()=>(await room.position()).cfi).not.toBe(before.cfi);
+  const rotated=await room.position();
+  await room.reopen();expect((await room.position()).cfi).toBe(rotated.cfi);
 });

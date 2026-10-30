@@ -303,3 +303,20 @@ button.danger { background: #a32020; color: #fff; }
 .search-results span { margin-top: 6px; color: var(--reading-text); font-weight: 400; }
 .reader .reader-eye-row .search-return { width: auto; max-width: calc(100% - 64px); min-height: 44px; padding: 6px 10px; font-size: .8125rem; margin-left: auto; order: 1; }
 @media (max-width: 420px) { .notes-filters { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+
+/* Personal reading width is applied inside the existing CFI reflow transaction. */
+.reader .book-area { width: min(100%, var(--text-width, 640px)); align-self: center; }
+.reader .book-area.fixed-layout { width: 100%; }
+.settings-dialog { padding: 18px; }
+.settings-dialog h2 { margin-bottom: 12px; }
+.settings-dialog .settings-preview { padding: 10px; margin-bottom: 12px; border-block: 1px solid var(--line); }
+.settings-dialog select { min-height: 44px; margin-bottom: 10px; padding: 6px 10px; }
+.settings-dialog fieldset { padding: 8px 10px; margin-bottom: 12px; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.text-size-controls { display: grid; grid-template-columns: 48px 1fr 48px; gap: 8px; align-items: start; }
+.text-size-controls button { min-height: 44px; padding: 6px; }
+@media (max-height: 540px) { .settings-dialog { max-height: calc(100dvh - 12px); padding: 12px; } .settings-preview { display: none; } }
+
+.reader[data-interface-hidden="true"] > :is(.reader-top, .reader-controls, .reader-eye-row, .demo-tip) { visibility: hidden; }
+.reader .focus-reveal { position: fixed; z-index: 30; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); opacity: 0; pointer-events: none; }
+.reader .focus-reveal:focus-visible { opacity: 1; pointer-events: auto; }

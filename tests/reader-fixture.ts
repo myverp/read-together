@@ -7,10 +7,10 @@ import { randomBytes, randomUUID } from "node:crypto";
 export async function applyReadingSettings(page: Page, fontSize = 28, theme = "Dark") {
   await selectReaderAction(page, "Reading settings");
   const dialog = page.getByRole("dialog", { name: "Reading settings", exact: true });
-  await dialog.getByLabel("Text size").selectOption(String(fontSize));
-  await expect(dialog.getByLabel("Text size")).toBeEnabled();
+  await dialog.getByLabel("Text size", {exact:true}).selectOption(String(fontSize));
+  await expect(dialog.getByLabel("Text size", {exact:true})).toBeEnabled();
   await dialog.getByRole("radio", { name: theme, exact: true }).check();
-  await expect(dialog.getByLabel("Text size")).toBeEnabled();
+  await expect(dialog.getByLabel("Text size", {exact:true})).toBeEnabled();
   await dialog.getByRole("button", { name: "Close reading settings" }).click();
   await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
 }

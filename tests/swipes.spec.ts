@@ -65,6 +65,8 @@ test('Chromium native touch delivery turns the iframe page once',async({page,con
  const first=await pos(page);
  await page.getByRole('button',{name:'Next page'}).click();await expect.poll(()=>pos(page)).not.toBe(first);const next=await pos(page);
  await page.getByRole('button',{name:'Previous page'}).click();await expect.poll(()=>pos(page)).toBe(first);
+ await selectReaderAction(page,'Hide interface');await page.getByRole('button',{name:'Hide controls',exact:true}).click();
+ await expect(page.locator('.reader')).toHaveAttribute('data-interface-hidden','true');
  const frame=(await page.locator('.book-view iframe').boundingBox())!;
  const cdp=await context.newCDPSession(page);
  const point=(x:number)=>[{x:frame.x+x,y:frame.y+180,id:0}];
@@ -72,6 +74,10 @@ test('Chromium native touch delivery turns the iframe page once',async({page,con
  for(const x of [230,200,170,140,100]) await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:point(x)});
  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await expect.poll(()=>pos(page)).toBe(next);await page.waitForTimeout(300);expect(await pos(page)).toBe(next);
+ await expect(page.locator('.reader')).toHaveAttribute('data-interface-hidden','true');
+ const viewport=(await page.locator('.book-view').boundingBox())!;
+ await page.touchscreen.tap(viewport.x+viewport.width/2,viewport.y+viewport.height/2);
+ await expect(page.getByRole('button',{name:'Reader menu',exact:true})).toBeFocused();
  await cdp.detach();
 });
 

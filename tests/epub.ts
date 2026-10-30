@@ -25,7 +25,7 @@ export async function epub(internalLinks = false, navigation: "normal" | "nested
   }
   if (appearance !== "plain") for (const path of ["one", "two"]) {
     const section = await zip.file(`OEBPS/${path}.xhtml`)!.async("string");
-    zip.file(`OEBPS/${path}.xhtml`, section.replace('</head>', `${appearance === "fixed" ? '<meta name="viewport" content="width=600,height=800"/>' : '<style>body{background:#ffff00;color:#ffffff;font-size:40px}p{font-size:40px;color:#ffffff;background:#ffff00}h1{font-size:60px;color:#ffffff}code,pre,td{color:#ffffff;background:#000000}</style>'}</head>`).replace('</h1>', '</h1><p><em>Author emphasis</em> and <strong>strong text</strong>.</p><pre><code>Readable code</code></pre><table><tbody><tr><td>Table cell</td></tr></tbody></table><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="#ff0000"/></svg>'));
+    zip.file(`OEBPS/${path}.xhtml`, section.replace('</head>', `${appearance === "fixed" ? '<meta name="viewport" content="width=600,height=800"/>' : '<style>body{background:#ffff00;color:#ffffff;font-size:40px}p{font-size:40px;color:#ffffff;background:#ffff00}h1{font-size:60px;color:#ffffff}code,pre,td{color:#ffffff;background:#000000}.bodytext{text-align:justify;font-family:Arial,sans-serif}.verse{text-align:center}</style>'}</head>`).replace('</h1>', '</h1><p class="bodytext"><em>Author emphasis</em> and <strong>strong text</strong>.</p><pre><code>Readable code</code></pre><p class="verse">A line of poetry<br/>Another line</p><table><tbody><tr><td>Table cell</td></tr></tbody></table><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="#ff0000"/></svg>'));
   }
   return zip.generateAsync({ type: "nodebuffer" });
 }
