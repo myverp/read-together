@@ -49,6 +49,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const [fixedLayout, setFixedLayout] = useState(false);
   const reflow = useRef<() => void>(() => {});
   const resizePending = useRef(false);
+  const appliedSize = useRef<{ width: number; height: number } | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [sectionIndex, setSectionIndex] = useState<number | null>(null);
   const modalOpen = useRef(false);
@@ -238,10 +239,16 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
         if (disposed) return;
         // Explicit dimensions prevent the iframe from expanding the mobile viewport.
         let width = element.clientWidth, height = element.clientHeight;
+        appliedSize.current = { width, height };
         resize = new ResizeObserver(() => {
           if (!disposed && element.clientWidth && element.clientHeight && (width !== element.clientWidth || height !== element.clientHeight)) {
             width = element.clientWidth; height = element.clientHeight;
-            if (!navigationBusy.current) reflow.current();
+            const applied = appliedSize.current;
+            if (navigationBusy.current) {
+              // Ignore only our own applied geometry. Real rotation/viewport
+              // changes still need the queued reflow after navigation settles.
+              if (!applied || applied.width !== width || applied.height !== height) resizePending.current = true;
+            } else reflow.current();
           }
         });
         resize.observe(element);
@@ -387,7 +394,10 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
             // This formats author CSS before restoring the confirmed text anchor.
             reader.clear();
             const element = viewer.current;
-            if (element && (layout.resize || layout.settings)) (reader as unknown as { resize: (width: number, height: number, cfi: string) => void }).resize(element.clientWidth, element.clientHeight, target);
+            if (element && (layout.resize || layout.settings)) {
+              appliedSize.current = { width: element.clientWidth, height: element.clientHeight };
+              (reader as unknown as { resize: (width: number, height: number, cfi: string) => void }).resize(element.clientWidth, element.clientHeight, target);
+            }
           }
           if (chapter?.target?.includes("#")) {
             const section = openedBook.current?.spine.get(chapter.target);
@@ -443,6 +453,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
         const element = viewer.current;
         if (element) {
           element.parentElement?.style.setProperty("--text-width", `${textWidthPixels(previousSettings)}px`);
+          appliedSize.current = { width: element.clientWidth, height: element.clientHeight };
           (reader as unknown as { resize: (width: number, height: number, cfi: string) => void }).resize(element.clientWidth, element.clientHeight, previous.cfi);
         }
         // Recover the view without accepting a late callback from the failed reflow.

@@ -83,3 +83,22 @@ test("reader menu still dismisses over the book after rotation replaces its ifra
   await expect(page.getByRole("menu")).toHaveCount(0);
   expect(await room.position()).toEqual(before);
 });
+
+test("rotation during a delayed page turn queues real geometry after navigation", async({page})=>{
+  const room=await openReader(page);const before=await room.position();
+  await page.evaluate(()=>{
+    const frame=requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=callback=>frame(time=>{setTimeout(()=>callback(time),150);});
+  });
+  await page.getByRole("button",{name:"Next page"}).click();
+  await expect(page.getByRole("button",{name:"Next page"})).toBeDisabled();
+  await page.setViewportSize({width:844,height:390});
+  await expect(page.getByRole("button",{name:"Next page"})).toBeEnabled();
+  await expect.poll(async()=>{
+    const book=await page.locator(".book-view").boundingBox(),frame=await page.locator(".book-view iframe").boundingBox();
+    return !!book&&!!frame&&Math.abs(book.width-frame.width)<1&&Math.abs(book.height-frame.height)<1;
+  }).toBe(true);
+  await expect.poll(async()=>(await room.position()).cfi).not.toBe(before.cfi);
+  const rotated=await room.position();
+  await room.reopen();expect((await room.position()).cfi).toBe(rotated.cfi);
+});
