@@ -14,7 +14,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   await expect(page.getByRole("button", { name: "Hide drawings" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await trigger.focus(); await page.keyboard.press("ArrowDown");
   const items = page.getByRole("menuitem");
-  await expect(items).toHaveText(["Contents", "Search book", "Notes", "Listen", "Reading settings", "Invite", "Partner", "Room details"]);
+  await expect(items).toHaveText(["Contents", "Search book", "Notes", "Listen", "Reading settings", "Hide interface", "Invite", "Partner", "Room details"]);
   await expect(items.first()).toBeFocused();
   await expect(page.getByRole("menuitem", { name: "Partner", exact: true })).toBeDisabled();
   await page.keyboard.press("End"); await expect(items.last()).toBeFocused();
@@ -36,7 +36,7 @@ test("compact reader menu keeps geometry and position, supports keyboard and tra
   for (const [theme, background] of [["Dark", "rgb(23, 25, 30)"], ["Sepia", "rgb(244, 236, 216)"], ["Light", "rgb(255, 255, 255)"]]) {
     await selectReaderAction(page, "Reading settings");
     await page.getByRole("radio", { name: theme, exact: true }).check();
-    await expect(page.getByLabel("Text size")).toBeEnabled();
+    await expect(page.getByLabel("Text size", {exact:true})).toBeEnabled();
     await page.getByRole("button", { name: "Close reading settings" }).click();
     await openReaderMenu(page);
     await expect(page.getByRole("menu")).toHaveCSS("background-color", background);

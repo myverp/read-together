@@ -14,7 +14,7 @@ export default function ReadingSettingsDialog({ settings, busy, fixed, storageAv
   }, []);
   return <dialog ref={dialog} className="panel reader-dialog settings-dialog" aria-labelledby="reading-settings-title" onCancel={onClose}>
     <h2 id="reading-settings-title">Reading settings</h2>
-    <div className="settings-preview" aria-label="Typography preview" style={{ fontFamily: settings.font === "sans" ? "system-ui, sans-serif" : settings.font === "serif" ? "Georgia, serif" : undefined, fontSize: settings.fontSize, lineHeight: settings.lineHeight }}>A quiet moment with your book.</div>
+    {!fixed && settings.font !== "original" ? <div className="settings-preview" aria-label="Font sample" style={{ fontFamily: settings.font === "sans" ? "system-ui, sans-serif" : "Georgia, serif", fontSize: settings.fontSize, lineHeight: settings.lineHeight }}>A quiet moment with your book.</div> : <p className="settings-original-note">{fixed ? "Typography is set by this fixed-layout book." : "Book original keeps the font supplied by this book."}</p>}
     <fieldset disabled={busy || fixed} className="typography-settings"><legend>Typography</legend>
     <label htmlFor="reader-font">Font</label><select id="reader-font" value={settings.font} onChange={event => onChange({ ...settings, font: event.target.value as ReadingSettings["font"] })}>{FONTS.map(font => <option key={font} value={font}>{({serif: "Serif - Georgia", sans: "System sans", original: "Book original"})[font]}</option>)}</select>
     <label htmlFor="reader-text-size">Text size</label>
