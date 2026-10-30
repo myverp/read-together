@@ -198,7 +198,7 @@ test("focus mode reserves geometry, ignores selections and gestures, and restore
   expect(await room.position()).toEqual(before);
   const frame=page.frameLocator(".book-view iframe");
   await frame.locator("body").evaluate(async body=>{
-    const win=body.ownerDocument.defaultView!,x=win.innerWidth/2,y=win.innerHeight/2;
+    const win=body.ownerDocument.defaultView!,frame=win.frameElement!,clip=frame.closest(".book-view")!.getBoundingClientRect(),origin=frame.getBoundingClientRect(),x=clip.left+clip.width/2-origin.left,y=clip.top+clip.height/2-origin.top;
     const pointer=(target:Element,type:string)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,isPrimary:true,pointerId:1,button:0,clientX:x,clientY:y}));
     const link=body.ownerDocument.createElement("a");link.href="#passage";body.append(link);
     pointer(link,"pointerdown");pointer(link,"pointerup");link.remove();
@@ -207,32 +207,38 @@ test("focus mode reserves geometry, ignores selections and gestures, and restore
   await expect(page.locator(".reader")).toHaveAttribute("data-interface-hidden","true");
   await frame.locator("body").evaluate(body=>{
     const doc=body.ownerDocument, win=doc.defaultView!;
-    const x=win.innerWidth/2,y=win.innerHeight/2;
+    const frame=win.frameElement!,clip=frame.closest(".book-view")!.getBoundingClientRect(),origin=frame.getBoundingClientRect(),x=clip.left+clip.width/2-origin.left,y=clip.top+clip.height/2-origin.top;
     const event=(type:string,clientX:number)=>body.dispatchEvent(new PointerEvent(type,{bubbles:true,isPrimary:true,pointerId:1,button:0,clientX,clientY:y}));
     event("pointerdown",x);event("pointermove",x+70);event("pointerup",x+70);
   });
   await expect(page.locator(".reader")).toHaveAttribute("data-interface-hidden","true");
   await frame.locator("body").evaluate(body=>{
     const doc=body.ownerDocument,range=doc.createRange();range.selectNodeContents(body.querySelector("p")!);doc.defaultView!.getSelection()!.addRange(range);
-    const win=doc.defaultView!,x=win.innerWidth/2,y=win.innerHeight/2;
+    const win=doc.defaultView!,frame=win.frameElement!,clip=frame.closest(".book-view")!.getBoundingClientRect(),origin=frame.getBoundingClientRect(),x=clip.left+clip.width/2-origin.left,y=clip.top+clip.height/2-origin.top;
     for(const type of ["pointerdown","pointerup"]) body.dispatchEvent(new PointerEvent(type,{bubbles:true,isPrimary:true,pointerId:1,button:0,clientX:x,clientY:y}));
   });
   await expect(page.locator(".reader")).toHaveAttribute("data-interface-hidden","true");
+  await expect(page.getByRole("button",{name:"Highlight selection"})).toBeVisible();
   await frame.locator("body").evaluate(body=>{body.ownerDocument.defaultView!.getSelection()!.removeAllRanges();});
   await expect(page.getByRole("button",{name:"Highlight selection"})).toHaveCount(0);
   await frame.locator("body").evaluate(body=>body.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
   await expect(page.getByRole("button",{name:"Reader menu"})).toBeFocused();
   await selectReaderAction(page,"Hide interface");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await frame.locator("body").evaluate(body=>{
-    const win=body.ownerDocument.defaultView!,x=win.innerWidth/2,y=win.innerHeight/2;
-    for(const type of ["pointerdown","pointerup"]) body.dispatchEvent(new PointerEvent(type,{bubbles:true,isPrimary:true,pointerId:1,button:0,clientX:x,clientY:y}));
-  });
+  const tapMiddle=async()=>{
+    const viewport=(await page.locator(".book-view").boundingBox())!;
+    await page.touchscreen.tap(viewport.x+viewport.width/2,viewport.y+viewport.height/2);
+  };
+  await tapMiddle();
   await expect(page.getByRole("button",{name:"Reader menu"})).toBeFocused();
   expect(await page.locator(".book-view").boundingBox()).toEqual(box);expect(await room.position()).toEqual(before);
   await selectReaderAction(page,"Hide interface");
   await page.getByRole("button",{name:"Show interface",exact:true}).press("Enter");
   await expect(page.getByRole("button",{name:"Reader menu"})).toBeFocused();
+  await page.getByRole("button",{name:"Next page"}).click();await expect(page.getByRole("button",{name:"Next page"})).toBeEnabled();
+  const translated=await room.position();expect(translated.cfi).not.toBe(before.cfi);
+  await selectReaderAction(page,"Hide interface");await tapMiddle();
+  await expect(page.getByRole("button",{name:"Reader menu"})).toBeFocused();expect(await room.position()).toEqual(translated);
   await room.reopen();await expect(page.locator(".reader")).toHaveAttribute("data-interface-hidden","false");
 });
 

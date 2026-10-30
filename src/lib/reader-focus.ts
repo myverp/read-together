@@ -30,8 +30,13 @@ export function attachFocusReveal(reader: Rendition, viewer: HTMLElement, blocke
         const gesture = start; cancel();
         if (!gesture || gesture.id !== event.pointerId || Date.now() - gesture.time > 300 || blocked(content) || interactive(event.target) || annotation(event.clientX, event.clientY)) return;
         if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8) return;
-        const width = content.window.innerWidth, height = content.window.innerHeight;
-        if (event.clientX < width * .25 || event.clientX > width * .75 || event.clientY < height * .2 || event.clientY > height * .8) return;
+        // A paginated iframe spans the section's columns, with a translated
+        // origin after each turn. The tap zone belongs to the visible viewport.
+        const viewport = viewer.getBoundingClientRect();
+        const frame = content.window.frameElement?.getBoundingClientRect();
+        if (!frame) return;
+        const x = frame.left + event.clientX, y = frame.top + event.clientY;
+        if (x < viewport.left + viewport.width * .25 || x > viewport.left + viewport.width * .75 || y < viewport.top + viewport.height * .2 || y > viewport.top + viewport.height * .8) return;
         reveal();
       };
       const key = (event: KeyboardEvent) => { if (event.key === "Escape" && !blocked(content)) { event.preventDefault(); reveal(); } };
