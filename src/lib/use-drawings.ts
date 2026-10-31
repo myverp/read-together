@@ -26,5 +26,5 @@ export function useDrawings(code: string) {
   }, [refresh]);
   const save = async (input: DrawingInput) => accept(await api<DrawingState>(endpoint, input));
   const remove = async (id: string) => accept(await api<DrawingState>(endpoint, { id }, 'DELETE'));
-  return { drawings: state.items, error, refresh, save, remove };
+  return { drawings: state.items, loaded: state.revision >= 0, error, refresh, save, remove };
 }

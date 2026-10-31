@@ -25,3 +25,9 @@ test('toolbar stays near the endpoint and flips above near the bottom edge', () 
   assert.deepEqual(selectionToolbarPosition(rect(375,600,375,630),bounds,96,52),{left:276,top:532});
   assert.deepEqual(selectionToolbarPosition(rect(21,61,21,91),bounds,96,52),{left:28,top:107});
 });
+test('a caret wrapped into the next clipped column falls back to the visible selection end', () => {
+  const node={},range={startContainer:node,startOffset:0,cloneRange:()=>({setStart(){},collapse(){},getClientRects:()=>[rect(500,10,500,40)]}),getClientRects:()=>[rect(20,500,180,530)]};
+  const selected={rangeCount:1,focusNode:node,focusOffset:115,getRangeAt:()=>range};
+  const frame={clientWidth:800,clientHeight:600,getBoundingClientRect:()=>rect(0,0,800,600)};
+  assert.deepEqual(selectionAnchor(selected,frame,rect(0,0,400,600)),{left:180,right:180,top:500,bottom:530});
+});

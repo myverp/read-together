@@ -26,12 +26,23 @@ async function selectVisiblePassage(page: Page, backwards = false, bottom = fals
     if (!candidate) throw new Error("No sufficiently long visible passage");
     const {node,start,end}=candidate, selected=doc.getSelection()!;
     selected.setBaseAndExtent(node,options.backwards?end:start,node,options.backwards?start:end);
-    const range=selected.getRangeAt(0), caret=range.cloneRange(); caret.setStart(node,options.backwards?start:end); caret.collapse(true);
+    const range=selected.getRangeAt(0);
     const boxes=Array.from(range.getClientRects()).filter(box=>origin.left+box.right>clip.left&&origin.left+box.left<clip.right);
-    const endpoint=caret.getClientRects()[0] || (options.backwards?boxes[0]:boxes.at(-1))!;
-    return {quote:selected.toString().trim(),x:origin.left+(options.backwards?endpoint.left:endpoint.right),top:origin.top+endpoint.top,bottom:origin.top+endpoint.bottom,
-      rangeBottom:origin.top+boxes.at(-1)!.bottom,translated:origin.left<clip.left-50,lines:boxes.length};
+    return {quote:selected.toString().trim(),translated:origin.left<clip.left-50,lines:boxes.length};
   }, {backwards,bottom});
+}
+
+async function currentSelectionGeometry(page: Page) {
+  return page.locator(".book-view iframe").evaluate(element => {
+    const frame=element as HTMLIFrameElement, selected=frame.contentDocument!.getSelection()!;
+    if(!selected.rangeCount||!selected.focusNode)throw new Error("The selected range disappeared");
+    const origin=frame.getBoundingClientRect(),clip=frame.closest(".book-view")!.getBoundingClientRect(),range=selected.getRangeAt(0);
+    const backwards=selected.focusNode===range.startContainer&&selected.focusOffset===range.startOffset;
+    const caret=range.cloneRange();caret.setStart(selected.focusNode,selected.focusOffset);caret.collapse(true);
+    const boxes=Array.from(range.getClientRects()).filter(box=>origin.left+box.right>clip.left&&origin.left+box.left<clip.right&&origin.top+box.bottom>clip.top&&origin.top+box.top<clip.bottom);
+    const endpoint=Array.from(caret.getClientRects()).find(box=>origin.left+box.right>=clip.left&&origin.left+box.left<=clip.right&&origin.top+box.bottom>clip.top&&origin.top+box.top<clip.bottom)||(backwards?boxes[0]:boxes.at(-1))!;
+    return {quote:selected.toString().trim(),top:origin.top+endpoint.top,bottom:origin.top+endpoint.bottom,rangeBottom:origin.top+boxes.at(-1)!.bottom};
+  });
 }
 
 test("selection actions follow forward and reverse multiline endpoints on translated pages", async ({ page }, testInfo) => {
@@ -51,8 +62,9 @@ test("selection actions follow forward and reverse multiline endpoints on transl
       const toolbar=page.getByRole("group",{name:"Selected text actions"});
       await expect(toolbar).toBeVisible();
       await expect.poll(async()=>{
-        const box=(await toolbar.boundingBox())!;
-        return Math.min(Math.abs(box.y-endpoint.bottom),Math.abs(box.y+box.height-endpoint.top));
+        const box=(await toolbar.boundingBox())!,live=await currentSelectionGeometry(page);
+        expect(live.quote).toBe(endpoint.quote);
+        return Math.min(Math.abs(box.y-live.bottom),Math.abs(box.y+box.height-live.top));
       }).toBeLessThanOrEqual(17);
       const box=(await toolbar.boundingBox())!,area=(await page.locator(".book-area").boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(area.x); expect(box.x+box.width).toBeLessThanOrEqual(area.x+area.width);
@@ -66,9 +78,13 @@ test("selection actions follow forward and reverse multiline endpoints on transl
     const highlight=page.getByRole("button",{name:"Highlight selection",exact:true});
     await expect(highlight).toBeVisible();
     await expect.poll(async()=>{
-      const box=(await page.getByRole("group",{name:"Selected text actions"}).boundingBox())!;
-      return Math.min(Math.abs(box.y-endpoint.bottom),Math.abs(box.y+box.height-endpoint.top));
+      // WebKit can scroll after setBaseAndExtent or put the caret in the next
+      // clipped column. Follow the same live range's visible endpoint.
+      const box=(await page.getByRole("group",{name:"Selected text actions"}).boundingBox())!,live=await currentSelectionGeometry(page);
+      expect(live.quote).toBe(endpoint.quote);
+      return Math.min(Math.abs(box.y-live.bottom),Math.abs(box.y+box.height-live.top));
     }).toBeLessThanOrEqual(17);
+    const live=await currentSelectionGeometry(page);
     // Native input must retain the captured passage on both touch engines.
     const button=(await highlight.boundingBox())!;
     await page.touchscreen.tap(button.x+button.width/2,button.y+button.height/2);
@@ -80,7 +96,7 @@ test("selection actions follow forward and reverse multiline endpoints on transl
     // Check the saved CFI's rendered mark at the new selection, not just its quote.
     await expect(page.locator(`.shared-highlight[data-id="${saved.id}"] rect`).first()).toBeAttached();
     const ends=await page.locator(`.shared-highlight[data-id="${saved.id}"] rect`).evaluateAll(elements=>elements.map(element=>element.getBoundingClientRect().bottom));
-    expect(Math.min(...ends.map(bottom=>Math.abs(bottom-endpoint.rangeBottom)))).toBeLessThan(5);
+    expect(Math.min(...ends.map(bottom=>Math.abs(bottom-live.rangeBottom)))).toBeLessThan(5);
     expect(await room.position()).toEqual(before);
   }
 });
@@ -178,6 +194,29 @@ test("tips can be skipped when their own storage write is unavailable",async({pa
   await openReader(page); await page.getByRole("button",{name:"Skip tips"}).click();
   await expect(page.getByRole("region",{name:"Reading tips"})).toHaveCount(0);
   await page.getByRole("button",{name:"Next page",exact:true}).click(); await expect(page.getByRole("button",{name:"Done here",exact:true})).toBeEnabled();
+});
+
+test("first-reading tips leave saved annotations and large-text controls accessible",async({page},testInfo)=>{
+  const room=await openReader(page),tips=page.getByRole("region",{name:"Reading tips"});
+  await expect(tips).toBeVisible();
+  await selectVisiblePassage(page,false,true);await page.getByRole("button",{name:"Highlight selection",exact:true}).click();
+  const submitted=page.waitForRequest(request=>request.url().endsWith(`/api/rooms/${room.code}/highlights`)&&request.method()==="POST");
+  await page.getByRole("button",{name:"Save highlight",exact:true}).click();const saved=(await submitted).postDataJSON();
+  await expect(tips).toHaveCount(0);
+  await page.screenshot({path:testInfo.outputPath("tips-annotation-access.png")});
+  const mark=page.locator(`.shared-highlight[data-id="${saved.id}"] rect`);await expect(mark.first()).toBeAttached();
+  const point=await mark.evaluateAll(elements=>{
+    const clip=document.querySelector(".book-area")!.getBoundingClientRect();
+    for(const element of elements){const box=element.getBoundingClientRect(),left=Math.max(box.left,clip.left),right=Math.min(box.right,clip.right),top=Math.max(box.top,clip.top),bottom=Math.min(box.bottom,clip.bottom);if(right-left>2&&bottom-top>2)return{x:(left+right)/2,y:(top+bottom)/2};}
+    throw new Error("Saved annotation is not visible");
+  });
+  await page.touchscreen.tap(point.x,point.y);await expect(page.getByRole("dialog")).toBeVisible();await page.getByRole("button",{name:"Close highlight",exact:true}).click();
+  expect(await page.evaluate(()=>localStorage.getItem("read-together:reading-tips:v1"))).toBeNull();
+  await openReader(page);await expect(tips).toBeVisible();
+  await page.setViewportSize({width:640,height:450});await page.addStyleTag({content:"html{font-size:200%}"});
+  await expect(tips).toBeHidden();await page.screenshot({path:testInfo.outputPath("tips-large-text-controls.png")});await page.getByRole("button",{name:"Exit",exact:true}).click();
+  await page.getByRole("button",{name:"Continue reading",exact:true}).click();await expect(page.getByRole("button",{name:"Done here",exact:true})).toBeEnabled();
+  await expect(tips).toHaveCount(0);
 });
 
 test("homepage secondary actions have space and readable hover and focus states",async({page},testInfo)=>{

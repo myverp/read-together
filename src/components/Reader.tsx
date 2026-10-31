@@ -58,9 +58,10 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const modalOpen = useRef(false);
   const nextButton = useRef<HTMLButtonElement>(null);
   const { highlights, loaded: notesLoaded, colors, error: highlightError, refresh, save, remove, edit } = useHighlights(room.code);
-  const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
+  const { drawings, loaded: drawingsLoaded, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
   const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, unavailable, flushProgress } = useRoom(room, refreshAnnotations);
+  const [tipsEligible] = useState(() => !me.cfi);
   useEffect(() => { if (unavailable) onUnavailable(); }, [unavailable, onUnavailable]);
   const [exiting, setExiting] = useState(false);
   const exitBusy = useRef(false);
@@ -655,7 +656,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       <button className="secondary reader-icon-button" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page"><ReaderIcon name="draw" /></button>
       <button ref={nextButton} className="secondary reader-icon-button" title="Next page" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page"><ReaderIcon name="next" /></button>
     </footer>
-    <ReaderTips viewer={viewer} nextButton={nextButton} menuButton={dialogTrigger} suspended={loading || turning || exiting || takenOver || interfaceHidden || focusHint || menuOpen || detailsExpanded || contentsOpen || notesOpen || searchOpen || settingsOpen || inviteOpen || !!selection || !!highlightDialog || drawing || drawingModal || !!audioPage || unsafeExit} />
+    <ReaderTips eligible={tipsEligible} viewer={viewer} nextButton={nextButton} menuButton={dialogTrigger} suspended={!notesLoaded || !drawingsLoaded || !!highlights.length || !!drawings.length || loading || turning || exiting || takenOver || interfaceHidden || focusHint || menuOpen || detailsExpanded || contentsOpen || notesOpen || searchOpen || settingsOpen || inviteOpen || !!selection || !!highlightDialog || drawing || drawingModal || !!audioPage || unsafeExit} />
   </main>;
 }
 

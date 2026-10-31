@@ -335,12 +335,12 @@ button.danger { background: #a32020; color: #fff; }
 
 .reader[data-interface-hidden="true"] > :is(.reader-top, .reader-controls, .reader-eye-row) { visibility: hidden; }
 
-.reader-tip { position: fixed; z-index: 15; width: min(284px, calc(100vw - 16px)); padding: 14px; border: 1px solid var(--accent); border-radius: 16px; background: var(--surface); color: var(--reading-text); box-shadow: 0 6px 24px #0002; }
+.reader-tip { position: fixed; z-index: 15; width: min(284px, calc(100vw - 16px)); padding: 14px; border: 1px solid var(--accent); border-radius: 16px; background: var(--surface); color: var(--reading-text); box-shadow: 0 6px 24px #0002; pointer-events: none; }
 .reader-tip-heading { display: flex; align-items: baseline; gap: 12px; justify-content: space-between; font-size: .875rem; }
 .reader-tip-heading span { flex-shrink: 0; color: var(--secondary); font-size: .75rem; }
 .reader-tip p { margin: 7px 0 10px; font-size: .8125rem; }
 .reader-tip-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.reader-tip-actions button { width: auto; min-height: 44px; padding: 8px 12px; font-size: .8125rem; }
+.reader-tip-actions button { width: auto; min-height: 44px; padding: 8px 12px; font-size: .8125rem; pointer-events: auto; }
 .reader :is(.selection-actions, .search-query-row, .reader-tip-actions) > button:not(.secondary):not(:disabled):hover { background: var(--accent); box-shadow: inset 0 0 0 100px #0000000a; }
 .reader .focus-reveal { position: fixed; z-index: 30; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); opacity: 0; pointer-events: none; }
 .reader .focus-reveal:focus-visible { opacity: 1; pointer-events: auto; }

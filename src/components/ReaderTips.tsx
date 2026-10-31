@@ -8,33 +8,38 @@ const tips = [
   { title: "Make yourself comfortable", text: "Open the menu for reading settings, search and Invite." },
 ];
 
-export default function ReaderTips({ suspended, viewer, nextButton, menuButton }: {
-  suspended: boolean; viewer: RefObject<HTMLDivElement | null>; nextButton: RefObject<HTMLButtonElement | null>; menuButton: RefObject<HTMLButtonElement | null>;
+export default function ReaderTips({ eligible, suspended, viewer, nextButton, menuButton }: {
+  eligible: boolean; suspended: boolean; viewer: RefObject<HTMLDivElement | null>; nextButton: RefObject<HTMLButtonElement | null>; menuButton: RefObject<HTMLButtonElement | null>;
 }) {
   const [step, setStep] = useState<number | null>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!eligible) return;
     try { if (localStorage.getItem(KEY) === "done") return; } catch { /* Tips remain optional without storage. */ }
     setStep(0);
-  }, []);
+  }, [eligible]);
   useLayoutEffect(() => {
     if (step === null || suspended) return;
     const element = card.current;
     const anchor = step === 0 ? nextButton.current : step === 1 ? viewer.current : menuButton.current;
     if (!element || !anchor) return;
     const place = () => {
-      const box = anchor.getBoundingClientRect(), viewport = window.visualViewport;
-      const leftEdge = (viewport?.offsetLeft ?? 0) + 8, rightEdge = (viewport?.offsetLeft ?? 0) + (viewport?.width ?? innerWidth) - 8;
-      const topEdge = (viewport?.offsetTop ?? 0) + 8, bottomEdge = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) - 8;
+      const box = anchor.getBoundingClientRect(), viewport = window.visualViewport, book = viewer.current?.getBoundingClientRect();
+      if (!book) { setPosition(null); return; }
+      const leftEdge = Math.max(book.left, viewport?.offsetLeft ?? 0) + 8, rightEdge = Math.min(book.right, (viewport?.offsetLeft ?? 0) + (viewport?.width ?? innerWidth)) - 8;
+      const topEdge = Math.max(book.top, viewport?.offsetTop ?? 0) + 8, bottomEdge = Math.min(book.bottom, (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight)) - 8;
+      // Optional tips must never cover controls when large text or a short
+      // viewport leaves too little book space. Resume when the card fits again.
+      if (element.offsetWidth > rightEdge - leftEdge || element.offsetHeight > bottomEdge - topEdge) { setPosition(null); return; }
       const left = step === 0 || step === 1 ? box.right - element.offsetWidth : box.left;
       // Keep the first card above the book's lower edge: the drawings/return
       // row sits between the book and the footer and must stay tappable at 320px.
-      const bookBottom = viewer.current?.getBoundingClientRect().bottom ?? box.top;
-      const top = step === 0 ? Math.min(box.top, bookBottom) - element.offsetHeight - 10 : step === 1 ? box.top + 8 : box.bottom + 10;
+      const top = step === 0 ? Math.min(box.top, book.bottom) - element.offsetHeight - 10 : step === 1 ? box.top + 8 : box.bottom + 10;
       setPosition({ left: Math.max(leftEdge, Math.min(left, rightEdge - element.offsetWidth)), top: Math.max(topEdge, Math.min(top, bottomEdge - element.offsetHeight)) });
     };
     place(); const resize = new ResizeObserver(place); resize.observe(element); resize.observe(anchor);
+    if (viewer.current) resize.observe(viewer.current);
     window.addEventListener("resize", place); window.visualViewport?.addEventListener("resize", place); window.visualViewport?.addEventListener("scroll", place);
     return () => { resize.disconnect(); window.removeEventListener("resize", place); window.visualViewport?.removeEventListener("resize", place); window.visualViewport?.removeEventListener("scroll", place); };
   }, [step, suspended, viewer, nextButton, menuButton]);
