@@ -28,7 +28,10 @@ export default function ReaderTips({ suspended, viewer, nextButton, menuButton }
       const leftEdge = (viewport?.offsetLeft ?? 0) + 8, rightEdge = (viewport?.offsetLeft ?? 0) + (viewport?.width ?? innerWidth) - 8;
       const topEdge = (viewport?.offsetTop ?? 0) + 8, bottomEdge = (viewport?.offsetTop ?? 0) + (viewport?.height ?? innerHeight) - 8;
       const left = step === 0 || step === 1 ? box.right - element.offsetWidth : box.left;
-      const top = step === 0 ? box.top - element.offsetHeight - 10 : step === 1 ? box.top + 8 : box.bottom + 10;
+      // Keep the first card above the book's lower edge: the drawings/return
+      // row sits between the book and the footer and must stay tappable at 320px.
+      const bookBottom = viewer.current?.getBoundingClientRect().bottom ?? box.top;
+      const top = step === 0 ? Math.min(box.top, bookBottom) - element.offsetHeight - 10 : step === 1 ? box.top + 8 : box.bottom + 10;
       setPosition({ left: Math.max(leftEdge, Math.min(left, rightEdge - element.offsetWidth)), top: Math.max(topEdge, Math.min(top, bottomEdge - element.offsetHeight)) });
     };
     place(); const resize = new ResizeObserver(place); resize.observe(element); resize.observe(anchor);

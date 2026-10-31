@@ -142,10 +142,15 @@ test("immediate selection changes snapshot the same live quote and CFI and retai
 });
 
 test("first reading tips are contextual optional suspendable and dismissed across books",async({page},testInfo)=>{
+  await page.setViewportSize({width:320,height:700});
   const room=await openReader(page),tips=page.getByRole("region",{name:"Reading tips"});
   await expect(tips).toHaveAttribute("data-tip-step","1");
   const area=await page.locator(".book-area").boundingBox(),before=await room.position();
   await expect(page.getByRole("button",{name:"Next page",exact:true})).toBeInViewport();
+  const card=(await tips.boundingBox())!,eyeRow=(await page.locator(".reader-eye-row").boundingBox())!;
+  expect(card.y+card.height).toBeLessThanOrEqual(eyeRow.y);
+  await page.getByRole("button",{name:"Hide drawings",exact:true}).click();await expect(page.getByRole("button",{name:"Show drawings",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Show drawings",exact:true}).click();
   await page.screenshot({path:testInfo.outputPath("tips-page-turn.png")});
   await tips.getByRole("button",{name:"Next tip"}).click(); await expect(tips).toHaveAttribute("data-tip-step","2");
   await page.screenshot({path:testInfo.outputPath("tips-selection.png")});
