@@ -19,6 +19,8 @@ Reading comfort coverage extends `reader-settings.spec.ts` with v1-to-v2 persona
 
 The reader layout suite additionally covers menu order, keyboard/outside dismissal (including a replacement EPUB iframe after rotation), Tab to Exit, focus transfer to every panel, theme backgrounds, stable book geometry and CFI, and 320px/low-height/desktop layout. Successful local/cloud save labels are no longer rendered; progress tests inspect confirmed queue completion, distinguish local-only saves from failed local writes, and retain all failure/retry/conflict scenarios.
 
+`reader-ux.spec.ts` covers compact search and Theme-first settings in three themes on phone, tablet, landscape and desktop; selection actions at forward/reverse multiline endpoints in translated EPUB columns; native touch activation and an immediate range-change race with quote/CFI and length-limit checks; optional first-reading tips, suspension during other reader actions, keyboard dismissal and unavailable storage; and homepage secondary-action spacing/contrast. Screenshots are visual evidence from browser emulation, not physical-device acceptance.
+
 ## Real backend checks
 
 `npm run test:integration` starts the production application, runs the test files serially, then stops the application:
