@@ -129,7 +129,7 @@ export default function RoomLibrary({ onOpenRoom, disabled = false }: { onOpenRo
         {!!visible.filter(room => room.linked).length && <div aria-label="Linked rooms">{rows(visible.filter(room => room.linked))}</div>}
         {!!visible.filter(room => !room.linked).length && <div><h3 className="room-library-group">On this device</h3><p className="muted">These guest rooms stay in this browser until you link them to your profile.</p>{rows(visible.filter(room => !room.linked))}</div>}
       </> : rows(visible)}
-      <p className="muted room-library-note">Archive hides a room only for you. Done here saves your place and keeps the room active. You can open an archived room without restoring it.</p>
+      {!!rooms.length && <p className="muted room-library-note">Archive hides a room only for you. Done here saves your place and keeps the room active. You can open an archived room without restoring it.</p>}
     </section>
   </>;
 }

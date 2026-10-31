@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { BookMatch } from "@/lib/book-search";
+import ReaderIcon from "./ReaderIcon";
 
 export default function ReaderSearch({ onSearch, onNavigate, onClose, busy, navigationError }: {
   onSearch: (query: string, signal: AbortSignal, progress: (count: number, total: number) => void) => Promise<{ items: BookMatch[]; limited: boolean; failed: number }>;
@@ -28,12 +29,12 @@ export default function ReaderSearch({ onSearch, onNavigate, onClose, busy, navi
     finally { if (request.current === controller) { request.current = null; setWorking(false); } }
   }
   return <dialog ref={dialog} className="panel reader-dialog search-dialog" aria-labelledby="search-title" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <div className="notes-heading"><h2 id="search-title" tabIndex={-1} ref={heading}>Search book</h2><button className="secondary" disabled={busy} onClick={onClose}>Close search</button></div>
+    <div className="notes-heading"><h2 id="search-title" tabIndex={-1} ref={heading}>Search book</h2><button className="secondary search-close" aria-label="Close search" title="Close search" disabled={busy} onClick={onClose}>×</button></div>
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
-      <label htmlFor="book-query">Find in book</label><input id="book-query" type="search" maxLength={200} value={query} disabled={working || busy} onChange={event => { setQuery(event.target.value); setResult(null); setStatus(""); }} placeholder="Word or phrase (at least 2 characters)" />
-      <div className="note-actions"><button disabled={working || busy || query.trim().length < 2}>Search</button>{working && <button type="button" className="secondary" onClick={cancel}>Cancel search</button>}</div>
+      <label htmlFor="book-query">Find in book</label><div className="search-query-row"><input id="book-query" type="search" maxLength={200} value={query} disabled={working || busy} onChange={event => { setQuery(event.target.value); setResult(null); setStatus(""); }} placeholder="Word or phrase (at least 2 characters)" />
+      <button aria-label="Search" title="Search" disabled={working || busy || query.trim().length < 2}><ReaderIcon name="search" /></button></div>
+      {working && <button type="button" className="secondary" onClick={cancel}>Cancel search</button>}
     </form>
-    <p className="muted">Search runs on this device. Choose a result to move your own reading position.</p>
     <p role="status">{busy ? "Opening result…" : status}</p>
     {result?.failed ? <p role="alert">{result.failed} sections could not be searched. Results may be incomplete. Search again to retry.</p> : null}
     {result && !result.items.length && <p>No matches found in the searched sections.</p>}
