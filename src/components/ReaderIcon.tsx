@@ -1,6 +1,8 @@
-export type ReaderIconName = "search" | "menu" | "exit" | "contents" | "notes" | "listen" | "settings" | "invite" | "partner" | "info" | "prev" | "next" | "draw" | "eye";
+export type ReaderIconName = "close" | "highlight" | "search" | "menu" | "exit" | "contents" | "notes" | "listen" | "settings" | "invite" | "partner" | "info" | "prev" | "next" | "draw" | "eye";
 
 const paths: Record<ReaderIconName, string> = {
+  close: "M6 6l12 12M18 6 6 18",
+  highlight: "m9 14 8-10 5 4-8 10-5-4Zm0 0-4 5 4 1 5-2M3 22h13",
   search: "M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1.7 4.3L21 21",
   menu: "M4 6h16M4 12h16M4 18h16",
   exit: "M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M9 12h12m-4-4 4 4-4 4",

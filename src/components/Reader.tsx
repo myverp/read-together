@@ -27,6 +27,9 @@ import ReadingSettingsDialog from "./ReadingSettingsDialog";
 import { loadSettings, saveSettings, READING_PALETTES, textWidthPixels, type ReadingSettings } from "@/lib/reading-settings";
 import { browserStorage } from "@/lib/local-progress";
 import { registerReadingThemes, themeName } from "@/lib/reader-themes";
+import { selectionAnchor, type SelectionAnchor } from "@/lib/selection-anchor";
+import SelectionActions from "./SelectionActions";
+import ReaderTips from "./ReaderTips";
 
 export default function Reader({ room, onExit, onUnavailable }: { room: Room; onExit: (warning?: string) => void; onUnavailable: () => void }) {
   const [interfaceHidden, setInterfaceHidden] = useState(false);
@@ -53,12 +56,12 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [sectionIndex, setSectionIndex] = useState<number | null>(null);
   const modalOpen = useRef(false);
-  const [demoTip, setDemoTip] = useState(false);
-  useEffect(() => { try { setDemoTip(localStorage.getItem("read-together:demo") === room.code); } catch { /* Optional hint. */ } }, [room.code]);
+  const nextButton = useRef<HTMLButtonElement>(null);
   const { highlights, loaded: notesLoaded, colors, error: highlightError, refresh, save, remove, edit } = useHighlights(room.code);
-  const { drawings, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
+  const { drawings, loaded: drawingsLoaded, error: drawingError, refresh: refreshDrawings, save: saveDrawing, remove: removeDrawing } = useDrawings(room.code);
   const refreshAnnotations = useCallback(() => { void refresh(); void refreshDrawings(); }, [refresh, refreshDrawings]);
   const { me, partner, online, connection, storageError, syncState, retrySync, keepLocal, useCloud, stalePending, restoreLocal, update, notifyHighlights, takenOver, unavailable, flushProgress } = useRoom(room, refreshAnnotations);
+  const [tipsEligible] = useState(() => !me.cfi);
   useEffect(() => { if (unavailable) onUnavailable(); }, [unavailable, onUnavailable]);
   const [exiting, setExiting] = useState(false);
   const exitBusy = useRef(false);
@@ -100,6 +103,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   const audioOpen = useRef(false);
   const audioController = useRef<PageAudioController | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [selectionPosition, setSelectionPosition] = useState<SelectionAnchor | null>(null);
   const [highlightDialog, setHighlightDialog] = useState<HighlightDialogState | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [startingDrawing, setStartingDrawing] = useState(false);
@@ -203,10 +207,15 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
         });
         const captureSelection = (cfi: string, contents: Contents) => {
           if (disposed || controlLost.current || navigationBusy.current || modalOpen.current || audioOpen.current || drawingRef.current) return;
-          const quote = contents.window.getSelection()?.toString().trim();
+          const selected = contents.window.getSelection();
+          const quote = selected?.toString().trim();
           if (!quote) return;
           if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); setSelection(null); return; }
           setError("");
+          const frame = contents.window.frameElement as HTMLIFrameElement | null;
+          const clip = viewer.current?.getBoundingClientRect();
+          const anchor = selected && frame && clip ? selectionAnchor(selected, frame, clip) : null;
+          setSelectionPosition(previous => previous && anchor && previous.left === anchor.left && previous.right === anchor.right && previous.top === anchor.top && previous.bottom === anchor.bottom ? previous : anchor);
           setSelection(previous => previous?.cfi === cfi && previous.quote === quote ? previous : { id: crypto.randomUUID(), cfi, quote });
         };
         reader.on("selected", captureSelection);
@@ -356,6 +365,29 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     const contents = rendition.current?.getContents() as unknown as Contents[] | undefined;
     contents?.forEach(content => content.window.getSelection()?.removeAllRanges());
     setSelection(null);
+    setSelectionPosition(null);
+  }
+
+  function highlightSelection() {
+    let draft = selection;
+    // A native handle can move immediately before the toolbar is tapped,
+    // between epub.js callbacks or the WebKit fallback poll. Snapshot quote and
+    // CFI from the same live range before opening the dialog.
+    const contents = rendition.current?.getContents() as unknown as Contents[] | undefined;
+    for (const content of contents || []) {
+      const selected = content.window.getSelection();
+      if (!selected?.rangeCount || selected.isCollapsed) continue;
+      const quote = selected.toString().trim();
+      if (!quote) { clearSelection(); return; }
+      if (quote.length > 3000) { setError("Select a shorter passage (up to 3,000 characters)."); clearSelection(); return; }
+      try {
+        const cfi = content.cfiFromRange(selected.getRangeAt(0));
+        draft = { id: draft?.cfi === cfi && draft.quote === quote ? draft.id : crypto.randomUUID(), cfi, quote };
+      } catch { clearSelection(); return; }
+      break;
+    }
+    if (!draft) return;
+    audioController.current?.pause(); setHighlightDialog({ draft }); clearSelection();
   }
 
   async function navigate(target: "prev" | "next" | string, continuing = false, chapter?: Chapter, layout?: { settings?: ReadingSettings; resize?: boolean }) {
@@ -566,7 +598,6 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       ]} />
       <button className="secondary reader-icon-button room-exit" disabled={exiting || turning} onClick={() => void exitReader()} aria-label="Exit" title="Exit room"><ReaderIcon name="exit" /></button>
     </header>
-    {demoTip && <div className="demo-tip" inert={interfaceHidden}><p>Turn a page, select a phrase to highlight, then Invite someone to read with you.</p><button className="secondary" aria-label="Dismiss demo tips" onClick={() => setDemoTip(false)}>Got it</button></div>}
     {(storageError && storageError !== "Checking device storage…" || syncProblem || stalePending) && <div className="progress-status" role="status">
       {storageError && storageError !== "Checking device storage…" && <span>{storageError}</span>}
       {syncProblem && <><span>{syncState}</span><span>{storageError.startsWith("Browser storage") ? "Latest changes are not saved on this device." : "Latest changes are saved only on this device."}</span></>}
@@ -580,10 +611,7 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     {takenOver && <div className="taken-over" role="alert"><strong>Continued on another device</strong><span>This reader is now view-only. Exit and choose Continue here to take control again.</span></div>}
     <div className="book-area"><div ref={viewer} className="book-view" aria-label="EPUB reader" />{loading && <p className="book-loading" role="status">Opening EPUB…</p>}
       {!loading && <DrawingLayer reader={rendition.current} viewer={viewer.current} drawings={drawings} seat={room.seat} hidden={drawingsHidden} active={drawing} takenOver={takenOver} onCancel={cancelDrawing} onModalChange={changeDrawingModal} onSave={async input => { await saveDrawing(input); notifyHighlights(); }} onRemove={async id => { await removeDrawing(id); notifyHighlights(); }} />}
-      {selection && !takenOver && !drawing && <div className="selection-actions">
-        <button onClick={() => { audioController.current?.pause(); setHighlightDialog({ draft: selection }); clearSelection(); }}>Highlight selection</button>
-        <button className="secondary" onClick={clearSelection} aria-label="Dismiss selection">×</button>
-      </div>}
+      {selection && selectionPosition && !takenOver && !drawing && <SelectionActions anchor={selectionPosition} onHighlight={highlightSelection} onDismiss={clearSelection} />}
     </div>
     {detailsExpanded && <ReaderRoomDetails onClose={() => setDetailsExpanded(false)}>
     <section className="reader-status" aria-label="Reader positions">
@@ -626,8 +654,9 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
       <button className="secondary reader-icon-button" title="Previous page" disabled={takenOver || drawing || drawingModal || loading || turning || atStart} onClick={() => navigate("prev")} aria-label="Previous page"><ReaderIcon name="prev" /></button>
       <button aria-pressed={me.done} disabled={takenOver || drawing || drawingModal || loading || turning || !me.cfi} onClick={() => update({ ...current.current, done: !current.current.done })}>{me.done ? "Keep reading" : "Done here"}</button>
       <button className="secondary reader-icon-button" disabled={takenOver || loading || turning || startingDrawing || drawing || drawingModal || !!highlightDialog} onClick={() => void startDrawing()} aria-label="Draw on page" title="Draw on page"><ReaderIcon name="draw" /></button>
-      <button className="secondary reader-icon-button" title="Next page" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page"><ReaderIcon name="next" /></button>
+      <button ref={nextButton} className="secondary reader-icon-button" title="Next page" disabled={takenOver || drawing || drawingModal || loading || turning || atEnd} onClick={() => navigate("next")} aria-label="Next page"><ReaderIcon name="next" /></button>
     </footer>
+    <ReaderTips eligible={tipsEligible} viewer={viewer} nextButton={nextButton} menuButton={dialogTrigger} suspended={!notesLoaded || !drawingsLoaded || !!highlights.length || !!drawings.length || loading || turning || exiting || takenOver || interfaceHidden || focusHint || menuOpen || detailsExpanded || contentsOpen || notesOpen || searchOpen || settingsOpen || inviteOpen || !!selection || !!highlightDialog || drawing || drawingModal || !!audioPage || unsafeExit} />
   </main>;
 }
 

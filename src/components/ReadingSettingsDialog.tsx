@@ -14,7 +14,10 @@ export default function ReadingSettingsDialog({ settings, busy, fixed, storageAv
   }, []);
   return <dialog ref={dialog} className="panel reader-dialog settings-dialog" aria-labelledby="reading-settings-title" onCancel={onClose}>
     <h2 id="reading-settings-title">Reading settings</h2>
-    {!fixed && settings.font !== "original" ? <div className="settings-preview" aria-label="Font sample" style={{ fontFamily: settings.font === "sans" ? "system-ui, sans-serif" : "Georgia, serif", fontSize: settings.fontSize, lineHeight: settings.lineHeight }}>A quiet moment with your book.</div> : <p className="settings-original-note">{fixed ? "Typography is set by this fixed-layout book." : "Book original keeps the font supplied by this book."}</p>}
+    <fieldset disabled={busy}><legend>Theme</legend><div className="reading-theme-options">{THEMES.map(theme => <label key={theme}>
+      <input type="radio" name="reader-theme" value={theme} checked={settings.theme === theme} onChange={() => onChange({ ...settings, theme })} />
+      {theme[0].toUpperCase() + theme.slice(1)}
+    </label>)}</div></fieldset>
     <fieldset disabled={busy || fixed} className="typography-settings"><legend>Typography</legend>
     <label htmlFor="reader-font">Font</label><select id="reader-font" value={settings.font} onChange={event => onChange({ ...settings, font: event.target.value as ReadingSettings["font"] })}>{FONTS.map(font => <option key={font} value={font}>{({serif: "Serif - Georgia", sans: "System sans", original: "Book original"})[font]}</option>)}</select>
     <label htmlFor="reader-text-size">Text size</label>
@@ -26,12 +29,8 @@ export default function ReadingSettingsDialog({ settings, busy, fixed, storageAv
     <label htmlFor="reader-alignment">Prose alignment</label><select id="reader-alignment" value={settings.alignment} onChange={event => onChange({ ...settings, alignment: event.target.value as ReadingSettings["alignment"] })}><option value="original">Book original</option><option value="left">Left aligned</option></select>
     </fieldset>
     {fixed && <p>This fixed-layout book keeps its original typography and width. You can change the theme.</p>}
-    <fieldset disabled={busy}><legend>Theme</legend><div className="reading-theme-options">{THEMES.map(theme => <label key={theme}>
-      <input type="radio" name="reader-theme" value={theme} checked={settings.theme === theme} onChange={() => onChange({ ...settings, theme })} />
-      {theme[0].toUpperCase() + theme.slice(1)}
-    </label>)}</div></fieldset>
     <button className="secondary" disabled={busy} onClick={() => onChange({ ...DEFAULT_SETTINGS })}>Reset</button>
-    <p role="status">{busy ? "Applying reading settings…" : !storageAvailable ? "Settings work for this session, but cannot be saved on this device." : "Saved on this device. Applies to your books in this browser."}</p>
+    <p role="status">{busy ? "Applying reading settings…" : !storageAvailable ? "Settings work for this session, but cannot be saved on this device." : ""}</p>
     {error && <p className="error" role="alert">{error}</p>}
     <button className="secondary" onClick={onClose}>Close reading settings</button>
   </dialog>;

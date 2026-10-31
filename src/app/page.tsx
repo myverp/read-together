@@ -90,22 +90,23 @@ export default function Home() {
         <button className="secondary" disabled={!ready || !!busy} onClick={() => { fileInput.current?.scrollIntoView({ block: "center" }); fileInput.current?.focus(); fileInput.current?.click(); }}>Open your EPUB</button>
       </div>
       <p className="muted">Try a short original story, then invite someone to read with you.</p>
-      <button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
+      <div className="home-secondary-actions"><button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
       {demoCode && <button className="text-button" disabled={!!busy} onClick={() => { demoAttempt.current = null; void create(true); }}>Start another demo</button>}
+      </div>
       {error && errorArea === "demo" && <p className="error" role="alert">{error}</p>}
     </header>
     {ready && <RoomLibrary disabled={!!busy} onOpenRoom={enter} />}
     {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {error && errorArea === "storage" && <p className="error" role="alert">{error}</p>}
     {busy && <section className="panel creation-status"><p role="status">{busy}</p><button className="secondary" onClick={() => { creation.current?.abort(); setBusy("Cancelling… an active transfer may still finish."); }}>Cancel creation</button></section>}
-    <form className="panel" onSubmit={event => { event.preventDefault(); void create(); }}><h2>Open your own book</h2>
+    <form className="panel home-book-panel" onSubmit={event => { event.preventDefault(); void create(); }}><h2>Open your own book</h2>
       <p className="muted" id="epub-limits">DRM-free EPUB · up to 25 MB · upload once for both readers. PDF and protected books are not supported.</p>
       <label htmlFor="epub">Choose an EPUB</label>
       <input id="epub" ref={fileInput} aria-describedby="epub-limits" type="file" accept=".epub,application/epub+zip" disabled={!ready || !!busy} onChange={e => { setFile(e.target.files?.[0] || null); setError(""); }} />
       <button disabled={!file || !!busy}>Upload & create room</button>
       {error && errorArea === "upload" && <p className="error" role="alert">{error}</p>}
     </form>
-    <form className="panel" onSubmit={e => { e.preventDefault(); void join(); }}><h2>Have an invitation?</h2>
+    <form className="panel home-invitation-panel" onSubmit={e => { e.preventDefault(); void join(); }}><h2>Have an invitation?</h2>
       <label htmlFor="code">Room code or invitation link</label>
       <input id="code" ref={inviteInput} placeholder="A1B2C3D4E5F6 or invitation link" value={code} maxLength={2048} autoCapitalize="off" autoCorrect="off" spellCheck={false} disabled={!ready || !!busy} onChange={e => setCode(e.target.value)} />
       <button disabled={!code.trim() || !!busy}>Join / reopen room</button>
