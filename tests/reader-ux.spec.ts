@@ -182,8 +182,22 @@ test("first reading tips are contextual optional suspendable and dismissed acros
   await expect(tips).toHaveCount(0);
   await selectVisiblePassage(page); await expect(page.getByRole("button",{name:"Highlight selection",exact:true})).toBeVisible();
   await expect(tips).toHaveCount(0); await page.getByRole("button",{name:"Dismiss selection"}).click();
+  // Hold reveal's focus restoration until the user has moved to the tip.
+  await page.evaluate(() => {
+    const original = window.requestAnimationFrame;
+    const pending: FrameRequestCallback[] = [];
+    window.requestAnimationFrame = callback => { pending.push(callback); return pending.length; };
+    (window as unknown as { releaseRevealFrames: () => void }).releaseRevealFrames = () => {
+      window.requestAnimationFrame = original;
+      pending.splice(0).forEach(callback => callback(performance.now()));
+    };
+  });
   await page.keyboard.press("Escape"); await expect(tips).toHaveAttribute("data-tip-step","3");
-  await tips.getByRole("button",{name:"Done",exact:true}).focus(); await page.keyboard.press("Enter");
+  const finishTips = tips.getByRole("button",{name:"Done",exact:true});
+  await finishTips.focus();
+  await page.evaluate(() => (window as unknown as { releaseRevealFrames: () => void }).releaseRevealFrames());
+  await expect(finishTips).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("button",{name:"Reader menu",exact:true})).toBeFocused();
   await room.reopen(); await expect(tips).toHaveCount(0);
   await openReader(page); await expect(tips).toHaveCount(0);

@@ -339,8 +339,12 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   }, [loading, room.bookUrl]);
 
   const revealInterface = useCallback(() => {
+    const previousFocus = document.activeElement;
     setInterfaceHidden(false);
-    requestAnimationFrame(() => dialogTrigger.current?.focus());
+    requestAnimationFrame(() => {
+      // A reader can already have moved focus before the next frame runs.
+      if (document.activeElement === previousFocus || document.activeElement === document.body) dialogTrigger.current?.focus();
+    });
   }, []);
   useEffect(() => {
     if (!interfaceHidden) return;

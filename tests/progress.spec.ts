@@ -25,6 +25,7 @@ async function profileRoom(page: Page, request: APIRequestContext, internalLinks
   await page.goto("/");
   const open = async () => {
     await page.getByRole("button", { name: new RegExp(`Progress test.*${details.code}`) }).click();
+    await expect(page).toHaveURL(new RegExp(`/room/${details.code}$`));
     await expect(page.getByRole("button", { name: "Next page" })).toBeEnabled();
     await expect.poll(() => page.evaluate(code => {
       const key = `read-together:${code}:1`; const me = JSON.parse(localStorage.getItem(key) || "null");
