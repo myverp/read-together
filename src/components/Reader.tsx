@@ -342,8 +342,10 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
     const previousFocus = document.activeElement;
     setInterfaceHidden(false);
     requestAnimationFrame(() => {
-      // A reader can already have moved focus before the next frame runs.
-      if (document.activeElement === previousFocus || document.activeElement === document.body) dialogTrigger.current?.focus();
+      // A native book tap can focus its iframe before this frame; preserve any
+      // explicit move to another control, such as a newly revealed tip button.
+      const currentFocus = document.activeElement;
+      if (currentFocus === previousFocus || currentFocus === document.body || currentFocus?.matches(".book-view iframe")) dialogTrigger.current?.focus();
     });
   }, []);
   useEffect(() => {
