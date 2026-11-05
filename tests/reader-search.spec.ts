@@ -37,7 +37,10 @@ test("book search is inert until selection, returns to prior Done position and p
   expect(after.me).toEqual(partner.me);
   await selectReaderAction(page, "Search book"); await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Reader menu", exact: true })).toBeFocused();
-  await page.clock.install(); await page.clock.pauseAt(new Date());
+  const clockStart = new Date();
+  await page.clock.install({ time: clockStart });
+  // pauseAt must be ahead of the installed clock, which already advances.
+  await page.clock.pauseAt(new Date(clockStart.getTime() + 60_000));
   await selectReaderAction(page, "Search book");
   await dialog.getByLabel("Find in book").fill("river");
   await dialog.getByRole("button", { name: "Search", exact: true }).click();
