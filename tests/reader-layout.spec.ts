@@ -103,3 +103,52 @@ test("rotation during a delayed page turn queues real geometry after navigation"
   const rotated=await room.position();
   await room.reopen();expect((await room.position()).cfi).toBe(rotated.cfi);
 });
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+test(`reader motion preserves dismissal, focus and geometry (${reducedMotion})`, async ({ page }) => {
+  await page.emulateMedia({ reducedMotion });
+  const room = await openReader(page);
+  const before = await room.position();
+  const box = await page.locator(".book-view").boundingBox();
+  const trigger = page.getByRole("button", { name: "Reader menu" });
+  for (let reopen = 0; reopen < 3; reopen++) {
+    await trigger.press("ArrowDown");
+    await expect(page.getByRole("menuitem").first()).toBeFocused();
+    await expect(page.getByRole("menu")).toHaveCSS("animation-name", reducedMotion === "reduce" ? "none" : "reader-menu-enter");
+    expect(await page.getByRole("menu").evaluate(menu => {
+      menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      return document.activeElement?.getAttribute("aria-label");
+    })).toBe("Reader menu");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+  }
+  await selectReaderAction(page, "Reading settings");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveCSS("animation-name", reducedMotion === "reduce" ? "none" : "reader-dialog-enter");
+  expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await selectReaderAction(page, "Hide interface");
+  await page.getByRole("button", { name: "Hide controls", exact: true }).click();
+  expect(await page.locator(".book-view").boundingBox()).toEqual(box);
+  const chrome = page.locator(".reader > :is(.reader-top, .reader-controls, .reader-eye-row)");
+  for (const element of await chrome.all()) {
+    await expect(element).toHaveAttribute("inert", "");
+    if (reducedMotion === "reduce") await expect(element).toHaveCSS("transition-duration", "0s");
+    await expect(element).toHaveCSS("opacity", "0");
+    await expect(element).toHaveCSS("visibility", "hidden");
+  }
+  await page.getByRole("button", { name: "Show interface", exact: true }).press("Enter");
+  await expect(trigger).toBeFocused();
+  await trigger.press("ArrowDown");
+  await expect(page.getByRole("menuitem").first()).toBeFocused();
+  expect(await page.getByRole("menuitem").first().evaluate(item => {
+    const rect = item.getBoundingClientRect();
+    return item.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+  })).toBe(true);
+  await page.keyboard.press("Escape");
+  for (const element of await chrome.all()) await expect(element).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".reader-top")).toHaveCSS("opacity", "1");
+  expect(await page.locator(".book-view").boundingBox()).toEqual(box);
+  expect(await room.position()).toEqual(before);
+});
+}
