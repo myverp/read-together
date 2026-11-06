@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { readerToken } from "@/lib/client";
 import { createBookRoom, type BookCreation } from "@/lib/create-book-room";
 import AccountPanel from "@/components/AccountPanel";
-import { lastRoom } from "@/lib/room-history";
+import RoomLibrary from "@/components/RoomLibrary";
 import { ROOM_CODE, invitationCode, requestRoomEntry, roomPath, takeExitWarning } from "@/lib/room-invitation";
 
 export default function Home() {
@@ -14,7 +14,6 @@ export default function Home() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [errorArea, setErrorArea] = useState("storage");
-  const [recent, setRecent] = useState<{ code: string; title?: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const inviteInput = useRef<HTMLInputElement>(null);
   const [ready, setReady] = useState(false);
@@ -29,12 +28,21 @@ export default function Home() {
     setExitWarning(takeExitWarning());
     try {
       readerToken();
-      setRecent(lastRoom(localStorage));
       setReady(true);
       const demo = localStorage.getItem("read-together:demo") || "";
       if (ROOM_CODE.test(demo)) setDemoCode(demo);
     } catch { setError("Enable browser storage to remember your reader seat."); }
     return () => { active.current = false; creation.current?.abort(); };
+  }, []);
+
+  useEffect(() => {
+    const deleted = (event: Event) => {
+      const code = (event as CustomEvent<string>).detail;
+      setDemoCode(current => current === code ? "" : current);
+      demoAttempt.current = null;
+    };
+    window.addEventListener("read-together:room-deleted", deleted);
+    return () => window.removeEventListener("read-together:room-deleted", deleted);
   }, []);
 
   async function enter(roomCode: string) {
@@ -82,27 +90,28 @@ export default function Home() {
         <button className="secondary" disabled={!ready || !!busy} onClick={() => { fileInput.current?.scrollIntoView({ block: "center" }); fileInput.current?.focus(); fileInput.current?.click(); }}>Open your EPUB</button>
       </div>
       <p className="muted">Try a short original story, then invite someone to read with you.</p>
-      <button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
+      <div className="home-secondary-actions"><button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
       {demoCode && <button className="text-button" disabled={!!busy} onClick={() => { demoAttempt.current = null; void create(true); }}>Start another demo</button>}
+      </div>
       {error && errorArea === "demo" && <p className="error" role="alert">{error}</p>}
     </header>
-    {recent && <section className="panel continue-panel"><div><h2>Continue reading</h2><p>{recent.title || "Your last room on this browser"}</p></div><button className="secondary" disabled={!!busy} onClick={() => void enter(recent.code)}>Continue reading</button></section>}
+    {ready && <RoomLibrary disabled={!!busy} onOpenRoom={enter} />}
     {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {error && errorArea === "storage" && <p className="error" role="alert">{error}</p>}
     {busy && <section className="panel creation-status"><p role="status">{busy}</p><button className="secondary" onClick={() => { creation.current?.abort(); setBusy("Cancelling… an active transfer may still finish."); }}>Cancel creation</button></section>}
-    <form className="panel" onSubmit={event => { event.preventDefault(); void create(); }}><h2>Open your own book</h2>
+    <form className="panel home-book-panel" onSubmit={event => { event.preventDefault(); void create(); }}><h2>Open your own book</h2>
       <p className="muted" id="epub-limits">DRM-free EPUB · up to 25 MB · upload once for both readers. PDF and protected books are not supported.</p>
       <label htmlFor="epub">Choose an EPUB</label>
       <input id="epub" ref={fileInput} aria-describedby="epub-limits" type="file" accept=".epub,application/epub+zip" disabled={!ready || !!busy} onChange={e => { setFile(e.target.files?.[0] || null); setError(""); }} />
       <button disabled={!file || !!busy}>Upload & create room</button>
       {error && errorArea === "upload" && <p className="error" role="alert">{error}</p>}
     </form>
-    <form className="panel" onSubmit={e => { e.preventDefault(); void join(); }}><h2>Have an invitation?</h2>
+    <form className="panel home-invitation-panel" onSubmit={e => { e.preventDefault(); void join(); }}><h2>Have an invitation?</h2>
       <label htmlFor="code">Room code or invitation link</label>
       <input id="code" ref={inviteInput} placeholder="A1B2C3D4E5F6 or invitation link" value={code} maxLength={2048} autoCapitalize="off" autoCorrect="off" spellCheck={false} disabled={!ready || !!busy} onChange={e => setCode(e.target.value)} />
       <button disabled={!code.trim() || !!busy}>Join / reopen room</button>
       {error && errorArea === "invite" && <p className="error" role="alert">{error}</p>}
     </form>
-    <AccountPanel onOpenRoom={async roomCode => { await enter(roomCode); }} />
+    <AccountPanel />
   </main>;
 }

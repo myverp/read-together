@@ -10,6 +10,9 @@ test("home actions, keyboard forms and icons work with corrupt storage and small
   await expect(page.getByLabel("Room code or invitation link")).toBeFocused();
   await page.getByLabel("Room code or invitation link").fill("invalid invitation"); await page.keyboard.press("Enter");
   await expect(page.getByText(/valid invitation link from this site/)).toBeVisible();
+  // End text entry before resizing: WebKit otherwise scrolls the focused
+  // invitation field back into view after a viewport change.
+  await page.getByLabel("Room code or invitation link").blur();
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(() => scrollTo(0, 0));
@@ -40,12 +43,13 @@ test("validated legacy history offers explicit continue without admitting on the
   let admissions = 0;
   page.on("request", req => { if (req.url().endsWith("/api/rooms/ABCDEF123456") && req.method() === "POST") admissions++; });
   await page.addInitScript(() => localStorage.setItem("read-together:rooms", '[{"code":"ABCDEF123456","seat":1}]'));
+  await page.route("**/api/rooms/library", route => route.fulfill({ json: { rooms: [{ code: "ABCDEF123456", title: "Legacy room", seat: 1, createdAt: "2026-01-01T00:00:00Z", section: "", lastOpenedAt: null, archivedAt: null, linked: false }], unavailable: [] } }));
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Continue reading", exact: true })).toBeVisible();
   expect(admissions).toBe(0);
   await page.route("**/api/rooms/ABCDEF123456", route => route.fulfill({ status: 404, json: { error: "Room not found. Check the code." } }));
   await page.getByRole("button", { name: "Continue reading", exact: true }).click();
   await expect(page).toHaveURL(/\/room\/ABCDEF123456$/);
-  await expect(page.getByText("Room not found. Check the code.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Room no longer available" })).toBeVisible();
   expect(admissions).toBe(1);
 });

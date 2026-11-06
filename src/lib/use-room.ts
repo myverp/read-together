@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, supabase } from "./client";
+import { api, ApiError, supabase } from "./client";
 import { isPosition, type Position, type Room } from "./types";
 import { createPresenceConnection } from "./presence-connection";
 import { browserStorage, clearPending, readPending, readPosition, saveProgress, samePosition, type PendingProgress } from "./local-progress";
@@ -20,6 +20,7 @@ export function useRoom(room: Room, onHighlightsChanged?: () => void) {
   const [storageError, setStorageError] = useState("Checking device storage…");
   const [syncState, setSyncState] = useState<SyncState>(restorable ? "Syncing…" : "Synced");
   const [takenOver, setTakenOver] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const latest = useRef(me), localSaved = useRef(false), cloudSaved = useRef(authenticated && !restorable);
   const onlineRef = useRef(false), alive = useRef(true);
   const session = useRef<ReturnType<typeof createPresenceConnection> | null>(null);
@@ -31,6 +32,10 @@ export function useRoom(room: Room, onHighlightsChanged?: () => void) {
     queue.current?.stop(); setTakenOver(true); onlineRef.current = false; setOnline(false); setConnection("Continued on another device");
     const current = session.current; session.current = null; if (current) void current.stop();
   }, []);
+  const roomUnavailable = useCallback(() => {
+    if (!alive.current) return;
+    loseControl(); setUnavailable(true);
+  }, [loseControl]);
   const notifyHighlights = useCallback(() => { if (alive.current && !takenOver) session.current?.notifyHighlights(); }, [takenOver]);
   const recordLocal = useCallback((position: Position, pending?: PendingProgress) => {
     localSaved.current = saveProgress(browserStorage(), key, position, pending);
@@ -53,6 +58,7 @@ export function useRoom(room: Room, onHighlightsChanged?: () => void) {
       },
       status: state => { if (alive.current) { cloudSaved.current = state === "Synced"; setSyncState(state); } },
       lostControl: loseControl,
+      unavailable: roomUnavailable,
     });
     queue.current = current;
     if (restorable) current.restore(restorable);
@@ -61,7 +67,7 @@ export function useRoom(room: Room, onHighlightsChanged?: () => void) {
     const reconnect = () => { if (wasOffline && navigator.onLine) { wasOffline = false; current.retry(); } else current.kick(); };
     window.addEventListener("offline", offline); window.addEventListener("online", reconnect);
     return () => { alive.current = false; current.stop(); queue.current = null; window.removeEventListener("offline", offline); window.removeEventListener("online", reconnect); };
-  }, [authenticated, key, loseControl, recordLocal, room.code, room.controlVersion, room.revision, restorable]);
+  }, [authenticated, key, loseControl, roomUnavailable, recordLocal, room.code, room.controlVersion, room.revision, restorable]);
 
   const update = useCallback((next: Position) => {
     if (!alive.current || takenOver) return;
@@ -120,14 +126,17 @@ export function useRoom(room: Room, onHighlightsChanged?: () => void) {
         if (!state.active || state.controlVersion !== (room.controlVersion ?? 0)) { loseControl(); return; }
         if (!onlineRef.current && isPosition(state.partner)) { setPartner(state.partner); try { localStorage.setItem(`${key}:partner`, JSON.stringify(state.partner)); } catch { /* optional cache */ } }
         queue.current?.kick();
-      } catch { /* Poll failures do not reset the progress retry policy. */ }
+      } catch (reason) {
+        if (!disposed && reason instanceof ApiError && reason.details?.code === "room_unavailable") roomUnavailable();
+        // Transient poll failures do not reset the progress retry policy.
+      }
       finally { running = false; }
     };
     void poll(); const timer = setInterval(() => void poll(), 5000);
     window.addEventListener("focus", poll); document.addEventListener("visibilitychange", poll);
     return () => { disposed = true; controller.abort(); clearInterval(timer); window.removeEventListener("focus", poll); document.removeEventListener("visibilitychange", poll); };
-  }, [key, loseControl, room.code, room.controlVersion, takenOver]);
+  }, [key, loseControl, roomUnavailable, room.code, room.controlVersion, takenOver]);
 
-  return { me, partner, online, connection, storageError, syncState: authenticated ? syncState : "Saved on this device", update, notifyHighlights, takenOver, flushProgress,
+  return { me, partner, online, connection, storageError, syncState: authenticated ? syncState : "Saved on this device", update, notifyHighlights, takenOver, unavailable, flushProgress,
     retrySync: () => queue.current?.retry(), keepLocal: () => queue.current?.keepLocal(), useCloud, stalePending: !!stalePending, restoreLocal };
 }

@@ -1,15 +1,24 @@
 export const SETTINGS_KEY = "read-together:reading-settings:v1";
-export const TEXT_SIZES = [16, 18, 20, 22, 24, 26, 28] as const;
+export const TEXT_SIZES = [16, 18, 20, 22, 24, 26, 28, 30, 32] as const;
 export const THEMES = ["light", "dark", "sepia"] as const;
-export type ReadingSettings = { version: 1; theme: typeof THEMES[number]; fontSize: typeof TEXT_SIZES[number] };
-export const DEFAULT_SETTINGS: ReadingSettings = { version: 1, theme: "light", fontSize: 18 };
+export const FONTS = ["serif", "sans", "original"] as const;
+export const LINE_HEIGHTS = [1.4, 1.6, 1.8, 2] as const;
+export const TEXT_WIDTHS = ["narrow", "standard", "wide"] as const;
+export type ReadingSettings = { version: 2; theme: typeof THEMES[number]; fontSize: typeof TEXT_SIZES[number]; font: typeof FONTS[number]; lineHeight: typeof LINE_HEIGHTS[number]; textWidth: typeof TEXT_WIDTHS[number]; alignment: "original" | "left" };
+export const DEFAULT_SETTINGS: ReadingSettings = { version: 2, theme: "light", fontSize: 20, font: "serif", lineHeight: 1.6, textWidth: "standard", alignment: "original" };
+export const textWidthPixels = (settings: ReadingSettings) => settings.fontSize * ({ narrow: 27, standard: 32, wide: 40 }[settings.textWidth]);
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem"> | null;
 
 export function validateSettings(value: unknown): ReadingSettings {
   if (!value || typeof value !== "object") return { ...DEFAULT_SETTINGS };
   const settings = value as ReadingSettings;
-  if (settings.version !== 1 || !THEMES.includes(settings.theme) || !TEXT_SIZES.includes(settings.fontSize)) return { ...DEFAULT_SETTINGS };
-  return { version: 1, theme: settings.theme, fontSize: settings.fontSize };
+  if ((settings.version as number) === 1 && THEMES.includes(settings.theme) && [16, 18, 20, 22, 24, 26, 28].includes(settings.fontSize)) return { ...DEFAULT_SETTINGS, theme: settings.theme, fontSize: settings.fontSize };
+  if (settings.version !== 2 || !THEMES.includes(settings.theme) || !TEXT_SIZES.includes(settings.fontSize)) return { ...DEFAULT_SETTINGS };
+  return { version: 2, theme: settings.theme, fontSize: settings.fontSize,
+    font: FONTS.includes(settings.font) ? settings.font : DEFAULT_SETTINGS.font,
+    lineHeight: LINE_HEIGHTS.includes(settings.lineHeight) ? settings.lineHeight : DEFAULT_SETTINGS.lineHeight,
+    textWidth: TEXT_WIDTHS.includes(settings.textWidth) ? settings.textWidth : DEFAULT_SETTINGS.textWidth,
+    alignment: settings.alignment === "left" ? "left" : "original" };
 }
 export function loadSettings(storage: Storage): { settings: ReadingSettings; available: boolean } {
   try {

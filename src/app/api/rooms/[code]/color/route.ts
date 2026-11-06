@@ -1,4 +1,4 @@
-import { admin, controlFor, fail, HttpError, identity, seatFor } from "@/lib/server";
+import { admin, controlFor, fail, HttpError, identity, requireAvailableRoom, seatFor } from "@/lib/server";
 import type { HighlightState } from "@/lib/highlights";
 
 export async function PATCH(request: Request, context: { params: Promise<{ code: string }> }) {
@@ -7,8 +7,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ code:
     if (!Number.isInteger(color) || color < 0 || color > 9) throw new HttpError("Choose an available highlight color.");
     const db = admin();
     for (let attempt = 0; attempt < 8; attempt++) {
-      const { data: room, error } = await db.from("reading_rooms").select("reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,highlight_state").eq("code", code).maybeSingle();
+      const { data: room, error } = await db.from("reading_rooms").select("deletion_requested_at,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,highlight_state").eq("code", code).maybeSingle();
       if (error) throw error;
+      requireAvailableRoom(room);
       const seat = room && seatFor(room, who); if (!room || !seat) throw new HttpError("Join this room before changing its color.", 403);
       const linked = !!(who.userId && (seat === 1 ? room.reader_one_user : room.reader_two_user) === who.userId);
       const control = controlFor(room, seat);

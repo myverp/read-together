@@ -18,8 +18,8 @@ test("a clean visitor opens the real demo within a minute, invites a partner and
   expect(elapsed).toBeLessThan(60000);
   expect(created).toBe(1);
   const url = page.url();
-  await expect(page.getByText(/Turn a page, select a phrase/)).toBeVisible();
-  await page.getByRole("button", { name: "Dismiss demo tips" }).click();
+  await expect(page.getByRole("region", { name: "Reading tips" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip tips" }).click();
   await page.getByRole("button", { name: "Next page" }).click();
   const context = await browser.newContext({ ...testInfo.project.use, baseURL });
   try {
@@ -33,6 +33,7 @@ test("a clean visitor opens the real demo within a minute, invites a partner and
     await page.getByRole("button", { name: "Continue demo", exact: true }).click();
     await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
     await expect(page).toHaveURL(url); expect(created).toBe(1);
+    await expect(page.getByRole("region", { name: "Reading tips" })).toHaveCount(0);
   } finally { await context.close(); }
 });
 

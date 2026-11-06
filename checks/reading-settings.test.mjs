@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, validateSettings, loadSettings, saveSettings, READING_PALETTES } from '../src/lib/reading-settings.ts';
 test('settings accept only version, supported size and manual theme', () => {
-  for (const value of [null, {}, [], {version:2,theme:'dark',fontSize:18}, {version:1,theme:'system',fontSize:18}, {version:1,theme:'light',fontSize:17}, {version:1,theme:'light',fontSize:'28'}, {version:1,theme:'light',fontSize:30}]) assert.deepEqual(validateSettings(value), DEFAULT_SETTINGS);
-  assert.deepEqual(validateSettings({ version:1,theme:'sepia',fontSize:28,secret:'discard' }), {version:1,theme:'sepia',fontSize:28});
+  for (const value of [null, {}, [], {version:3,theme:'dark',fontSize:18}, {version:1,theme:'system',fontSize:18}, {version:1,theme:'light',fontSize:17}, {version:1,theme:'light',fontSize:'28'}, {version:1,theme:'light',fontSize:30}]) assert.deepEqual(validateSettings(value), DEFAULT_SETTINGS);
+  assert.deepEqual(validateSettings({ version:1,theme:'sepia',fontSize:28,secret:'discard' }), {...DEFAULT_SETTINGS,theme:'sepia',fontSize:28});
   assert.deepEqual(loadSettings({getItem:()=>'{broken'}), {settings:DEFAULT_SETTINGS,available:true});
 });
 test('storage failures retain usable defaults/session and serialization drops foreign fields', () => {
@@ -20,4 +20,11 @@ test('theme text, status, link and error colors exceed 4.5:1 on both surfaces', 
     const a=luminance(palette[ink].slice(1)), b=luminance(palette[background].slice(1));
     assert.ok((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5,`${name} ${ink}/${background}`);
   }
+});
+
+test('v2 typography validates bounded options and preserves legacy theme and size', () => {
+  assert.deepEqual(validateSettings({ version:1,theme:'dark',fontSize:18 }), {...DEFAULT_SETTINGS,theme:'dark',fontSize:18});
+  const full={...DEFAULT_SETTINGS,font:'sans',lineHeight:2,textWidth:'wide',alignment:'left',fontSize:32};
+  assert.deepEqual(validateSettings(full),full);
+  assert.deepEqual(validateSettings({...DEFAULT_SETTINGS,font:'external',lineHeight:99,textWidth:'huge',alignment:'right'}),DEFAULT_SETTINGS);
 });

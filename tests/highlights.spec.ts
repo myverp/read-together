@@ -9,6 +9,20 @@ async function selectText(page: Page, paragraph: number) {
   await page.bringToFront();
   await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
   await expect(page.frameLocator(".book-view iframe").locator("p").nth(paragraph)).toBeVisible();
+  // A paragraph's fragmented CSS-column box can count as visible even when
+  // its first words are on the next screen. Select the actual visible quote.
+  for (let screen = 0; screen < 4; screen++) {
+    const direction = await page.locator(".book-view iframe").evaluate((element, index) => {
+      const frame = element as HTMLIFrameElement, doc = frame.contentDocument!, node = doc.querySelectorAll("p")[index].firstChild!;
+      const range = doc.createRange(); range.setStart(node, 0); range.setEnd(node, Math.min(22, node.textContent!.length));
+      const origin = frame.getBoundingClientRect(), clip = frame.closest(".book-view")!.getBoundingClientRect();
+      if (Array.from(range.getClientRects()).some(box => origin.left + box.right > clip.left && origin.left + box.left < clip.right && origin.top + box.bottom > clip.top && origin.top + box.top < clip.bottom)) return null;
+      return origin.left + range.getBoundingClientRect().left >= clip.right ? "Next page" : "Previous page";
+    }, paragraph);
+    if (!direction) break;
+    await page.getByRole("button", { name: direction, exact: true }).click();
+    await expect(page.locator(".reader-controls > button:nth-child(2)")).toBeEnabled();
+  }
   await page.frameLocator(".book-view iframe").locator("p").nth(paragraph).evaluate(element => {
     const text = element.firstChild!;
     const range = element.ownerDocument.createRange();

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { admin, controlFor, fail, HttpError, identity, seatFor } from '@/lib/server';
+import { admin, controlFor, fail, HttpError, identity, requireAvailableRoom, seatFor } from '@/lib/server';
 import { isDrawingInput, type Drawing, type DrawingState } from '@/lib/drawings';
 type Context = { params: Promise<{ code: string }> };
 async function handle(request: Request, context: Context) {
@@ -18,8 +18,9 @@ async function handle(request: Request, context: Context) {
     }
     const db = admin();
     for (let attempt = 0; attempt < 8; attempt++) {
-      const { data: room, error } = await db.from('reading_rooms').select('ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,drawing_state').eq('code', code).maybeSingle();
+      const { data: room, error } = await db.from('reading_rooms').select('deletion_requested_at,ready,reader_one,reader_two,reader_one_user,reader_two_user,control_hash_one,control_hash_two,control_version_one,control_version_two,drawing_state').eq('code', code).maybeSingle();
       if (error) throw error;
+      requireAvailableRoom(room);
       const seat = room && seatFor(room, who);
       if (!room || !room.ready || !seat) throw new HttpError('Join this room before accessing drawings.', 403);
       const linked = !!(who.userId && (seat === 1 ? room.reader_one_user : room.reader_two_user) === who.userId);

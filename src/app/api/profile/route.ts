@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const db = admin();
     const { data, error } = await db.from("reading_rooms")
       .select("code,title,created_at,reader_one_user,reader_two_user,highlight_state")
-      .or(`reader_one_user.eq.${who.userId},reader_two_user.eq.${who.userId}`).order("created_at", { ascending: false }).limit(50);
+      .or(`reader_one_user.eq.${who.userId},reader_two_user.eq.${who.userId}`).is("deletion_requested_at", null).order("created_at", { ascending: false }).limit(50);
     if (error) throw error;
     const rooms = (data || []).map(room => {
       const seat = room.reader_one_user === who.userId ? 1 : 2;

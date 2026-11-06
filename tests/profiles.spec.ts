@@ -40,7 +40,12 @@ test("email profile links a guest room, customizes it, and requires explicit dev
   await page.getByRole("button", { name: "Next page" }).click();
   await page.getByRole("button", { name: "Exit", exact: true }).click();
 
+  await page.getByLabel("Actions for Profile room").click();
+  await page.getByRole("button", { name: "Archive Profile room", exact: true }).click();
+  await expect(page.getByText("Room archived for you.")).toBeVisible();
   await signIn(page, request, email);
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "On this device" })).toBeVisible();
   await page.getByLabel("Name").fill("River Reader");
   await page.getByRole("button", { name: "moon" }).click();
   await page.getByRole("button", { name: "Color 4" }).click();
@@ -49,6 +54,11 @@ test("email profile links a guest room, customizes it, and requires explicit dev
   await page.getByRole("button", { name: "Link browser rooms" }).click();
   await expect(page.getByText("1 room linked.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "My rooms" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "On this device" })).toHaveCount(0);
+  await expect(page.locator(".room-library-row")).toHaveCount(1);
+  await page.getByLabel("Actions for Profile room").click();
+  await page.getByRole("button", { name: "Restore Profile room" }).click();
+  await page.getByRole("button", { name: "Active", exact: true }).click();
   await page.getByRole("button", { name: new RegExp(`Profile room.*${roomCode}`) }).click();
   await selectReaderAction(page, "Room details");
   await expect(page.getByText(/p\. 2/).first()).toBeVisible();

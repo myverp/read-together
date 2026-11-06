@@ -16,6 +16,7 @@ export function createProgressQueue(options: {
   read: (signal: AbortSignal) => Promise<{ active: boolean; revision: number; me: Position }>;
   online: () => boolean; local: (pending: PendingProgress | null) => void;
   status: (state: SyncState) => void; lostControl: () => void;
+  unavailable?: () => void;
   schedule?: typeof setTimeout; cancel?: typeof clearTimeout; random?: () => number;
 }) {
   const schedule = options.schedule || setTimeout, cancel = options.cancel || clearTimeout;
@@ -41,6 +42,7 @@ export function createProgressQueue(options: {
       } catch (reason) {
         if (disposed) return;
         const error = reason as Failure;
+        if (error.details?.code === "room_unavailable") { api.stop(); options.unavailable?.(); return; }
         if (error.details?.takenOver) { api.stop(); options.lostControl(); return; }
         if (error.details?.code === "revision_conflict") {
           try {
@@ -53,7 +55,10 @@ export function createProgressQueue(options: {
               publishPending(); options.status(pending ? "Syncing…" : "Synced"); return;
             }
             conflict = state; blocked = true; options.status("Choose which position to keep"); return;
-          } catch { /* Resolve on an explicit retry if the conflict read fails. */ }
+          } catch (reason) {
+            if ((reason as Failure).details?.code === "room_unavailable") { api.stop(); options.unavailable?.(); return; }
+            // Resolve on an explicit retry if the conflict read fails.
+          }
           blocked = true; options.status("Could not sync"); return;
         }
         const delay = retryDelay(error, retries, options.random);
