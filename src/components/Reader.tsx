@@ -339,8 +339,14 @@ export default function Reader({ room, onExit, onUnavailable }: { room: Room; on
   }, [loading, room.bookUrl]);
 
   const revealInterface = useCallback(() => {
+    const previousFocus = document.activeElement;
     setInterfaceHidden(false);
-    requestAnimationFrame(() => dialogTrigger.current?.focus());
+    requestAnimationFrame(() => {
+      // A native book tap can focus its iframe before this frame; preserve any
+      // explicit move to another control, such as a newly revealed tip button.
+      const currentFocus = document.activeElement;
+      if (currentFocus === previousFocus || currentFocus === document.body || currentFocus?.matches(".book-view iframe")) dialogTrigger.current?.focus();
+    });
   }, []);
   useEffect(() => {
     if (!interfaceHidden) return;
