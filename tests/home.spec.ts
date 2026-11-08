@@ -53,3 +53,66 @@ test("validated legacy history offers explicit continue without admitting on the
   await expect(page.getByRole("heading", { name: "Room no longer available" })).toBeVisible();
   expect(admissions).toBe(1);
 });
+
+test("desktop library leads the action rail and reflows without losing account or form access", async ({ page, browser, baseURL }, testInfo) => {
+  let title = "A long book title without an artificial cover ".repeat(3);
+  await page.addInitScript(() => localStorage.setItem("read-together:rooms", '[{"code":"ABCDEF123456","seat":1}]'));
+  await page.route("**/api/rooms/library", route => route.fulfill({ json: { rooms: [{ code: "ABCDEF123456", title, seat: 1, createdAt: "2026-01-01T00:00:00Z", section: "Chapter one", lastOpenedAt: null, archivedAt: null, linked: false }], unavailable: [] } }));
+  await page.goto("/");
+  await expect(page.locator(".continue-panel h2")).toHaveText(title.trim());
+  for (const width of [1440, 1280, 820, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const geometry = await page.evaluate(() => {
+      const library = document.querySelector(".home-library")!.getBoundingClientRect();
+      const rail = document.querySelector(".home-rail")!.getBoundingClientRect();
+      return { library: { x: library.x, right: library.right, y: library.y, bottom: library.bottom, width: library.width }, rail: { x: rail.x, y: rail.y, width: rail.width }, fits: document.documentElement.scrollWidth <= innerWidth };
+    });
+    expect(geometry.fits).toBe(true);
+    if (width >= 1280) {
+      expect(geometry.library.right).toBeLessThan(geometry.rail.x);
+      expect(geometry.library.width).toBeGreaterThan(geometry.rail.width);
+      expect(Math.abs(geometry.library.y - geometry.rail.y)).toBeLessThan(1);
+    } else {
+      expect(geometry.rail.y).toBeGreaterThan(geometry.library.bottom);
+      expect(Math.abs(geometry.library.x - geometry.rail.x)).toBeLessThan(1);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`library-home-${width}.png`), fullPage: true });
+  }
+  title = "A short book title";
+  await page.reload();
+  await expect(page.locator(".continue-panel h2")).toHaveText(title);
+  const subtitle = (await page.locator(".continue-panel .muted").boundingBox())!;
+  const resume = (await page.getByRole("button", { name: "Continue reading", exact: true }).boundingBox())!;
+  expect(resume.y - subtitle.y - subtitle.height).toBeLessThan(30);
+  await page.screenshot({ path: testInfo.outputPath("library-home-short-mobile.png"), fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: testInfo.outputPath("library-home-short-desktop.png"), fullPage: true });
+  await page.getByRole("link", { name: "Your account", exact: true }).click();
+  await expect(page.locator("#home-account")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Have an invitation?", exact: true }).click();
+  await expect(page.getByLabel("Room code or invitation link")).toBeFocused();
+  await page.getByLabel("Room code or invitation link").blur();
+  await page.addStyleTag({ content: "html { font-size: 200%; }" });
+  for (const width of [640, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.screenshot({ path: testInfo.outputPath("library-home-text-200.png"), fullPage: true });
+  // Also exercise a desktop pointer/keyboard context, not just a wide phone viewport.
+  const desktop = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+  try {
+    const desktopPage = await desktop.newPage();
+    await desktopPage.addInitScript(() => localStorage.setItem("read-together:rooms", '[{"code":"ABCDEF123456","seat":1}]'));
+    await desktopPage.route("**/api/rooms/library", route => route.fulfill({ json: { rooms: [{ code: "ABCDEF123456", title, seat: 1, createdAt: "2026-01-01T00:00:00Z", section: "Chapter one", lastOpenedAt: null, archivedAt: null, linked: false }], unavailable: [] } }));
+    await desktopPage.goto("/");
+    await expect(desktopPage.locator(".continue-panel h2")).toHaveText(title);
+    const account = desktopPage.getByRole("link", { name: "Your account", exact: true });
+    await account.focus(); await desktopPage.keyboard.press("Enter");
+    await expect(desktopPage.locator("#home-account")).toBeFocused();
+    await desktopPage.keyboard.press("Tab");
+    await expect(desktopPage.getByRole("button", { name: "Sign in", exact: true })).toBeFocused();
+    await desktopPage.screenshot({ path: testInfo.outputPath("library-home-desktop-pointer.png"), fullPage: true });
+  } finally { await desktop.close(); }
+});
