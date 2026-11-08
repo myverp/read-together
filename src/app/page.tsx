@@ -83,21 +83,27 @@ export default function Home() {
     setError(""); await enter(normalized);
   }
 
-  return <main className="home">
-    <header className="home-intro"><h1>Read together</h1><p className="home-tagline">One EPUB. Two readers, each at their own pace.</p>
-      <div className="home-actions">
-        <button disabled={!ready || !!busy} onClick={() => demoCode ? void enter(demoCode) : void create(true)}>{demoCode ? "Continue demo" : "Try demo"}</button>
-        <button className="secondary" disabled={!ready || !!busy} onClick={() => { fileInput.current?.scrollIntoView({ block: "center" }); fileInput.current?.focus(); fileInput.current?.click(); }}>Open your EPUB</button>
+  return <main className="home home-library-page">
+    <header className="home-intro">
+      <div className="home-heading"><h1>Read together</h1><a href="#home-account">Your account</a></div>
+      <div className="home-welcome"><div><h2>Your reading space</h2><p className="home-tagline">One EPUB. Two readers, each at their own pace.</p></div>
+        <div className="home-shortcuts">
+          <button className="text-button" disabled={!ready || !!busy} onClick={() => { fileInput.current?.scrollIntoView({ block: "center" }); fileInput.current?.focus(); fileInput.current?.click(); }}>Open your EPUB</button>
+          <button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
+        </div>
       </div>
-      <p className="muted">Try a short original story, then invite someone to read with you.</p>
-      <div className="home-secondary-actions"><button className="text-button invitation-action" disabled={!!busy} onClick={() => { inviteInput.current?.scrollIntoView({ block: "center" }); inviteInput.current?.focus(); }}>Have an invitation?</button>
-      {demoCode && <button className="text-button" disabled={!!busy} onClick={() => { demoAttempt.current = null; void create(true); }}>Start another demo</button>}
-      </div>
-      {error && errorArea === "demo" && <p className="error" role="alert">{error}</p>}
     </header>
-    {ready && <RoomLibrary disabled={!!busy} onOpenRoom={enter} />}
     {exitWarning && <p className="error" role="alert">{exitWarning}</p>}
     {error && errorArea === "storage" && <p className="error" role="alert">{error}</p>}
+    <div className="home-layout">
+    <div className="home-library">{ready && <RoomLibrary disabled={!!busy} onOpenRoom={enter} />}</div>
+    <aside className="home-rail" aria-label="Books, invitations and account">
+    <section className="home-demo" aria-label="Demo book">
+      <button className="secondary" disabled={!ready || !!busy} onClick={() => demoCode ? void enter(demoCode) : void create(true)}>{demoCode ? "Continue demo" : "Try demo"}</button>
+      <p className="muted">Try a short original story, then invite someone to read with you.</p>
+      {demoCode && <div className="home-secondary-actions"><button className="text-button" disabled={!!busy} onClick={() => { demoAttempt.current = null; void create(true); }}>Start another demo</button></div>}
+      {error && errorArea === "demo" && <p className="error" role="alert">{error}</p>}
+    </section>
     {busy && <section className="panel creation-status"><p role="status">{busy}</p><button className="secondary" onClick={() => { creation.current?.abort(); setBusy("Cancelling… an active transfer may still finish."); }}>Cancel creation</button></section>}
     <form className="panel home-book-panel" onSubmit={event => { event.preventDefault(); void create(); }}><h2>Open your own book</h2>
       <p className="muted" id="epub-limits">DRM-free EPUB · up to 25 MB · upload once for both readers. PDF and protected books are not supported.</p>
@@ -112,6 +118,8 @@ export default function Home() {
       <button disabled={!code.trim() || !!busy}>Join / reopen room</button>
       {error && errorArea === "invite" && <p className="error" role="alert">{error}</p>}
     </form>
-    <AccountPanel />
+    <div id="home-account" tabIndex={-1}><AccountPanel /></div>
+    </aside>
+    </div>
   </main>;
 }

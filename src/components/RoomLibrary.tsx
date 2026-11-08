@@ -115,11 +115,12 @@ export default function RoomLibrary({ onOpenRoom, disabled = false }: { onOpenRo
         window.dispatchEvent(new CustomEvent("read-together:room-deleted", { detail: deletingRoom.code }));
         requestAnimationFrame(() => (tab === "active" ? activeTab : archiveTab).current?.focus());
       }} />}
-    {recent && <section className="panel continue-panel"><div><h2>Continue reading</h2><p>{recent.title}</p>{recent.section && recent.section !== "Opening book" && <p className="muted">{recent.section}</p>}</div><button className="secondary" disabled={disabled} onClick={() => void onOpenRoom(recent.code)}>Continue reading</button></section>}
-    <section className="panel room-library" aria-labelledby="room-library-title"><h2 id="room-library-title">My rooms</h2>
+    {recent && <section className="panel continue-panel"><div><p className="continue-label">Continue reading</p><h2>{recent.title}</h2>{recent.section && recent.section !== "Opening book" && <p className="muted">{recent.section}</p>}</div><button disabled={disabled} onClick={() => void onOpenRoom(recent.code)}>Continue reading</button></section>}
+    <section className="panel room-library" aria-labelledby="room-library-title"><div className="room-library-heading"><h2 id="room-library-title">My rooms</h2>
       <div className="room-library-tabs" role="group" aria-label="Room list">
         <button ref={activeTab} className="secondary" aria-pressed={tab === "active"} onClick={() => { setTab("active"); setActionError(null); }}>Active</button>
         <button ref={archiveTab} className="secondary" aria-pressed={tab === "archive"} onClick={() => { setTab("archive"); setActionError(null); }}>Archive</button>
+      </div>
       </div>
       {loading && <p className="muted" role="status">Loading rooms...</p>}
       {error && <div><p className="error" role="alert">{error}</p><button className="secondary" onClick={() => void refresh()}>Retry rooms</button></div>}
