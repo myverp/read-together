@@ -44,6 +44,18 @@ test("email profile links a guest room, customizes it, and requires explicit dev
   await page.getByRole("button", { name: "Archive Profile room", exact: true }).click();
   await expect(page.getByText("Room archived for you.")).toBeVisible();
   await signIn(page, request, email);
+  const originalViewport = page.viewportSize()!;
+  for (const width of [1280, 820, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`home-profile-${width}.png`), fullPage: true });
+  }
+  const scaledText = await page.addStyleTag({ content: "html { font-size: 200%; }" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("home-profile-text-200.png"), fullPage: true });
+  await scaledText.evaluate(element => element.parentNode?.removeChild(element));
+  await page.setViewportSize(originalViewport);
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(page.getByRole("heading", { name: "On this device" })).toBeVisible();
   await page.getByLabel("Name").fill("River Reader");
