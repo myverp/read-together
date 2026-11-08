@@ -1,5 +1,50 @@
 import { test, expect } from "@playwright/test";
 import { epub } from "./epub";
+import { openReader } from "./reader-fixture";
+
+test("a cached room remains tappable while profile membership resolves", async ({ page }) => {
+  const room = await openReader(page);
+  await page.getByRole("button", { name: "Exit", exact: true }).click();
+  await expect(page.getByRole("button", { name: new RegExp(`Reader test.*${room.code}`) })).toBeVisible();
+  await expect(page.getByText("Loading rooms...", { exact: true })).toHaveCount(0);
+  await page.evaluate(code => {
+    const key = `read-together:${code}:1`, position = JSON.parse(localStorage.getItem(key)!);
+    localStorage.setItem(key, JSON.stringify({ ...position, section: "Private local-only chapter" }));
+    // A valid partial browser-history entry need not contain a section label.
+    const history = JSON.parse(localStorage.getItem("read-together:rooms")!) as { code: string; section?: string }[];
+    const saved = history.find(room => room.code === code);
+    if (saved) delete saved.section;
+    localStorage.setItem("read-together:rooms", JSON.stringify(history));
+  }, room.code);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let responseReady!: () => void;
+  const ready = new Promise<void>(resolve => { responseReady = resolve; });
+  await page.route("**/api/rooms/library**", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch(); responseReady();
+    await gate; await route.fulfill({ response });
+  });
+  try {
+    await page.reload();
+    await ready;
+    expect(await page.evaluate(code => JSON.parse(localStorage.getItem(`read-together:${code}:1`)!).section, room.code)).toBe("Private local-only chapter");
+    await expect(page.getByText("Private local-only chapter", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Loading rooms...", { exact: true })).toBeVisible();
+    const button = page.getByRole("button", { name: new RegExp(`Reader test.*${room.code}`) });
+    const original = await button.elementHandle();
+    await button.scrollIntoViewIfNeeded();
+    const box = (await button.boundingBox())!, point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await page.mouse.move(point.x, point.y); await page.mouse.down();
+    release();
+    await expect(page.getByText("Loading rooms...", { exact: true })).toHaveCount(0);
+    expect(await original!.evaluate(element => element.isConnected)).toBe(true);
+    expect(await original!.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), point)).toBe(true);
+    await page.mouse.up();
+    await expect(page).toHaveURL(new RegExp(`/room/${room.code}$`));
+    await expect(page.getByRole("button", { name: "Done here", exact: true })).toBeEnabled();
+  } finally { release(); }
+});
 
 test("guest archives personally, retries failures, keeps Done and opens archived rooms without restoring", async ({ page, browser, baseURL }, testInfo) => {
   await page.goto("/");
